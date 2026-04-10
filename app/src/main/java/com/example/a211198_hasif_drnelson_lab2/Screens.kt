@@ -1,5 +1,7 @@
+// Package declaration for the screens
 package com.example.a211198_hasif_drnelson_lab2
 
+// Imports for Compose UI components, icons, navigation, and other utilities
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,25 +41,31 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 
+// HomeScreen composable: Main home screen with top bar, instant workouts, weekend runs, and a floating action button
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
+    // Box with black background for the entire screen
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // Scrollable column for content
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
         ) {
+            // Top bar with title, profile, and icons
             HomeTopBar(navController = navController)
             Spacer(modifier = Modifier.height(16.dp))
+            // Section for instant workouts
             InstantWorkoutsSection()
             Spacer(modifier = Modifier.height(32.dp))
+            // Section for weekend run routes
             WeekendRunSection()
             Spacer(modifier = Modifier.height(100.dp)) // Padding for FAB and Bottom Nav
         }
 
-        // Orange FAB positioned at bottom right (BottomEnd)
+        // Orange floating action button at bottom right for adding workouts
         FloatingActionButton(
             onClick = { /* Start Record */ },
             modifier = Modifier
@@ -74,13 +82,16 @@ fun HomeScreen(navController: NavController) {
     }
 }
 
+// HomeTopBar composable: Top bar for home screen with title, profile picture, and action icons
 @Composable
 fun HomeTopBar(navController: NavController) {
+    // Box for layout with title, profile, and icons
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        // Title text
         Text(
             text = "Home",
             style = MaterialTheme.typography.headlineMedium.copy(
@@ -90,7 +101,7 @@ fun HomeTopBar(navController: NavController) {
             modifier = Modifier.align(Alignment.CenterStart)
         )
 
-        // Profile Picture centrally positioned
+        // Profile picture in the center
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -106,6 +117,7 @@ fun HomeTopBar(navController: NavController) {
             )
         }
 
+        // Row of action icons on the right
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically
@@ -127,9 +139,12 @@ fun HomeTopBar(navController: NavController) {
     }
 }
 
+// InstantWorkoutsSection composable: Displays a horizontal list of instant workout cards
 @Composable
 fun InstantWorkoutsSection() {
+    // Column for the section
     Column(modifier = Modifier.fillMaxWidth()) {
+        // Header row with icon, title, and "See all" button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -168,6 +183,7 @@ fun InstantWorkoutsSection() {
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // LazyRow for horizontal scrolling workout cards
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -179,9 +195,12 @@ fun InstantWorkoutsSection() {
     }
 }
 
+// WeekendRunSection composable: Displays a section for planning weekend runs with route cards
 @Composable
 fun WeekendRunSection() {
+    // Column for the section
     Column(modifier = Modifier.fillMaxWidth()) {
+        // Header texts
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Text(
                 text = "Plan Your Weekend Run",
@@ -202,6 +221,7 @@ fun WeekendRunSection() {
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // LazyRow for horizontal scrolling route cards
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -213,6 +233,7 @@ fun WeekendRunSection() {
     }
 }
 
+// Data class for Route: Holds data for a running route
 data class Route(
     val title: String,
     val distance: String,
@@ -222,6 +243,7 @@ data class Route(
     val imageUrl: String
 )
 
+// List of sample routes
 val routeList = listOf(
     Route(
         "Teratai",
@@ -241,8 +263,10 @@ val routeList = listOf(
     )
 )
 
+// RouteCard composable: Card displaying a route with image, title, and details
 @Composable
 fun RouteCard(route: Route) {
+    // Card with rounded corners and dark background
     Card(
         modifier = Modifier
             .width(320.dp)
@@ -250,7 +274,9 @@ fun RouteCard(route: Route) {
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
     ) {
+        // Column for image and details
         Column(modifier = Modifier.fillMaxSize()) {
+            // Box for image with bookmark icon
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -263,7 +289,7 @@ fun RouteCard(route: Route) {
                     contentScale = ContentScale.Crop
                 )
                 
-                // Bookmark Icon in top right
+                // Bookmark icon in top right
                 IconButton(
                     onClick = { },
                     modifier = Modifier
@@ -281,6 +307,7 @@ fun RouteCard(route: Route) {
                 }
             }
 
+            // Column for text details
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -300,7 +327,7 @@ fun RouteCard(route: Route) {
                 Spacer(modifier = Modifier.height(10.dp))
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Difficulty Badge
+                    // Difficulty badge
                     Surface(
                         color = Color(0xFF4CAF50).copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp)
@@ -329,6 +356,7 @@ fun RouteCard(route: Route) {
     }
 }
 
+// Data class for Workout: Holds data for a workout
 data class Workout(
     val title: String,
     val description: String,
@@ -337,6 +365,7 @@ data class Workout(
     val color: Color
 )
 
+// List of sample workouts
 val workoutList = listOf(
     Workout(
         "Brisk Walk",
@@ -354,8 +383,10 @@ val workoutList = listOf(
     )
 )
 
+// WorkoutCard composable: Card displaying a workout with icon, title, description, and duration
 @Composable
 fun WorkoutCard(workout: Workout) {
+    // Card with dark background
     Card(
         modifier = Modifier
             .width(320.dp)
@@ -363,12 +394,14 @@ fun WorkoutCard(workout: Workout) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
     ) {
+        // Row for icon and text
         Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Box for icon with gradient background
             Box(
                 modifier = Modifier
                     .size(90.dp)
@@ -399,6 +432,7 @@ fun WorkoutCard(workout: Workout) {
 
             Spacer(modifier = Modifier.width(16.dp))
 
+            // Column for title and description
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = workout.title,
@@ -418,6 +452,7 @@ fun WorkoutCard(workout: Workout) {
                 )
             }
 
+            // Chevron icon
             Icon(
                 Icons.Rounded.ChevronRight,
                 contentDescription = null,
@@ -428,6 +463,7 @@ fun WorkoutCard(workout: Workout) {
     }
 }
 
+// Extension function to lighten a Color
 fun Color.lighten(factor: Float): Color {
     return Color(
         red = (red + (1f - red) * factor),
@@ -437,19 +473,23 @@ fun Color.lighten(factor: Float): Color {
     )
 }
 
+// Preview for HomeScreen
 @Preview(showBackground = true, device = "spec:width=411dp,height=891dp", backgroundColor = 0xFF000000)
 @Composable
 fun HomeScreenPreview() {
     HomeScreen(navController = rememberNavController())
 }
 
+// SearchScreen composable: Screen for searching friends and clubs with tabs, search field, and people list
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(navController: NavController) {
+    // State variables for tabs, search text, and followed people
     val tabTitles = listOf("Friends", "Clubs")
     var selectedTab by remember { mutableStateOf(0) }
     var searchText by remember { mutableStateOf("") }
     var followedPeople by remember { mutableStateOf(setOf<String>()) }
+    // List of people data
     val people = listOf(
         Triple("Anette Visser", "Hantum, Friesland", "Fan favorite on Strava"),
         Triple("Liyana Rahman", "Jerantut, Pahang", "Local Legend near you"),
@@ -457,6 +497,7 @@ fun SearchScreen(navController: NavController) {
         Triple("Helly M", "Marin, CA", "Fan favorite on Strava"),
         Triple("boy ezwan", "Local Legend near you", "")
     )
+    // Scaffold with top bar, bottom bar, and content
     Scaffold(
         topBar = {
             TopAppBar(
@@ -471,6 +512,7 @@ fun SearchScreen(navController: NavController) {
         },
         containerColor = Color.Black,
         bottomBar = {
+            // Bottom bar with invite friends button
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -487,11 +529,13 @@ fun SearchScreen(navController: NavController) {
             }
         }
     ) { innerPadding ->
+        // Column for main content
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Tab row for Friends and Clubs
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.Black,
@@ -514,6 +558,7 @@ fun SearchScreen(navController: NavController) {
                 }
             }
             Spacer(Modifier.height(8.dp))
+            // Search text field
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -531,6 +576,7 @@ fun SearchScreen(navController: NavController) {
                 )
             }
             Spacer(Modifier.height(16.dp))
+            // Row of icons for suggestions, Facebook, Contacts, QR Code
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -551,6 +597,7 @@ fun SearchScreen(navController: NavController) {
                 }
             }
             Spacer(Modifier.height(16.dp))
+            // Header for people you may know
             Text(
                 "PEOPLE YOU MAY KNOW",
                 color = Color(0xFFBDBDBD),
@@ -559,15 +606,18 @@ fun SearchScreen(navController: NavController) {
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             Spacer(Modifier.height(8.dp))
+            // LazyColumn for list of people
             LazyColumn(
                 Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp)
             ) {
+                // Filter people based on search text
                 val filteredPeople = people.filter { (name, _, _) ->
                     name.contains(searchText, ignoreCase = true)
                 }
                 
+                // If no results, show message
                 if (filteredPeople.isEmpty() && searchText.isNotEmpty()) {
                     item {
                         Box(
@@ -584,8 +634,10 @@ fun SearchScreen(navController: NavController) {
                         }
                     }
                 } else {
+                    // Items for each person
                     items(filteredPeople) { (name, location, subtitle) ->
                         val isFollowed = followedPeople.contains(name)
+                        // Card for each person
                         Card(
                             Modifier
                                 .fillMaxWidth()
@@ -604,6 +656,7 @@ fun SearchScreen(navController: NavController) {
                                     Text(location, color = Color(0xFFBDBDBD), fontSize = 13.sp)
                                     if (subtitle.isNotEmpty()) Text(subtitle, color = Color(0xFFFF9800), fontSize = 12.sp)
                                 }
+                                // Follow button that toggles to Followed
                                 Button(
                                     onClick = {
                                         followedPeople = if (isFollowed) {
@@ -631,6 +684,8 @@ fun SearchScreen(navController: NavController) {
         }
     }
 }
+
+// MapsScreen composable: Placeholder for maps screen
 @Composable
 fun MapsScreen() {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
@@ -638,6 +693,7 @@ fun MapsScreen() {
     }
 }
 
+// RecordScreen composable: Placeholder for record screen
 @Composable
 fun RecordScreen() {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
@@ -645,6 +701,7 @@ fun RecordScreen() {
     }
 }
 
+// GroupsScreen composable: Placeholder for groups screen
 @Composable
 fun GroupsScreen() {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
@@ -652,6 +709,7 @@ fun GroupsScreen() {
     }
 }
 
+// YouScreen composable: Placeholder for you screen
 @Composable
 fun YouScreen() {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
