@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.a211198_hasif_drnelson_lab2"
+    namespace = "com.example.a211198_hasif_drnelson_lab3"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -13,7 +13,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.a211198_hasif_drnelson_lab2"
+        applicationId = "com.example.a211198_hasif_drnelson_lab3"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

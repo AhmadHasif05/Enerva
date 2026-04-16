@@ -1,5 +1,5 @@
 // Package declaration for the navigation-related classes
-package com.example.a211198_hasif_drnelson_lab2
+package com.example.a211198_hasif_drnelson_lab3
 
 // Imports for Compose icons used in navigation
 import androidx.compose.material.icons.Icons

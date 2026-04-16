@@ -1,14 +1,19 @@
 // Package declaration for the app
-package com.example.a211198_hasif_drnelson_lab2
+package com.example.a211198_hasif_drnelson_lab3
 
 // Imports for Android and Compose components
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -25,7 +30,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.a211198_hasif_drnelson_lab2.ui.theme.RunTrackTheme
+import com.example.a211198_hasif_drnelson_lab3.ui.theme.RunTrackTheme
 
 // Main activity class that extends ComponentActivity
 class MainActivity : ComponentActivity() {
@@ -57,11 +62,11 @@ fun MainScreen() {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
             
-            // Navigation bar with black background
+            // Navigation bar using theme colors
             NavigationBar(
-                containerColor = Color.Black,
-                contentColor = Color.White,
-                tonalElevation = 0.dp
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 8.dp
             ) {
                 // Iterate over bottom navigation items
                 bottomNavItems.forEach { screen ->
@@ -88,8 +93,8 @@ fun MainScreen() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFFFF5722),
                             selectedTextColor = Color(0xFFFF5722),
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             indicatorColor = Color.Transparent
                         )
                     )
@@ -97,11 +102,31 @@ fun MainScreen() {
             }
         }
     ) { innerPadding ->
-        // Navigation host for handling screen navigation
+        // Navigation host for handling screen navigation with animations
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                fadeIn(animationSpec = tween(300)) + slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(300)) + slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(300)) + slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(300)) + slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(300)
+                )
+            }
         ) {
             // Define composable routes for each screen
             composable(Screen.Home.route) { HomeScreen(navController = navController) }

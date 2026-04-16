@@ -1,7 +1,12 @@
 // Package declaration for the screens
-package com.example.a211198_hasif_drnelson_lab2
+package com.example.a211198_hasif_drnelson_lab3
 
 // Imports for Compose UI components, icons, navigation, and other utilities
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,11 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,29 +41,39 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.a211198_hasif_drnelson_lab3.ui.theme.RunTrackTheme
 
 // HomeScreen composable: Main home screen with top bar, instant workouts, weekend runs, and a floating action button
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    // Box with black background for the entire screen
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    // Box with theme background for the entire screen
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Scrollable column for content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+            exit = fadeOut() + slideOutVertically()
         ) {
-            // Top bar with title, profile, and icons
-            HomeTopBar(navController = navController)
-            Spacer(modifier = Modifier.height(16.dp))
-            // Section for instant workouts
-            InstantWorkoutsSection()
-            Spacer(modifier = Modifier.height(32.dp))
-            // Section for weekend run routes
-            WeekendRunSection()
-            Spacer(modifier = Modifier.height(100.dp)) // Padding for FAB and Bottom Nav
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Top bar with title, profile, and icons
+                HomeTopBar(navController = navController)
+                Spacer(modifier = Modifier.height(16.dp))
+                // Section for instant workouts
+                InstantWorkoutsSection()
+                Spacer(modifier = Modifier.height(32.dp))
+                // Section for weekend run routes
+                WeekendRunSection()
+                Spacer(modifier = Modifier.height(100.dp)) // Padding for FAB and Bottom Nav
+            }
         }
 
         // Orange floating action button at bottom right for adding workouts
@@ -96,7 +107,7 @@ fun HomeTopBar(navController: NavController) {
             text = "Home",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             ),
             modifier = Modifier.align(Alignment.CenterStart)
         )
@@ -123,17 +134,17 @@ fun HomeTopBar(navController: NavController) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { }, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = "Chat", tint = Color.White)
+                Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = "Chat", tint = MaterialTheme.colorScheme.onBackground)
             }
             IconButton(
                 onClick = { navController.navigate(Screen.Search.route) },
                 modifier = Modifier.size(40.dp)
 
             ) {
-                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White)
+                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onBackground)
             }
             IconButton(onClick = { }, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Rounded.Notifications, contentDescription = "Notifications", tint = Color.White)
+                Icon(Icons.Rounded.Notifications, contentDescription = "Notifications", tint = MaterialTheme.colorScheme.onBackground)
             }
         }
     }
@@ -169,10 +180,10 @@ fun InstantWorkoutsSection() {
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "Instant Workouts - Hasif(A211198)",
+                    text = "Instant Workouts-Hasif(A211198)",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 )
             }
@@ -206,14 +217,14 @@ fun WeekendRunSection() {
                 text = "Plan Your Weekend Run",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 24.sp
                 )
             )
             Text(
                 text = "Explore these popular routes near you",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 0.5.sp
                 )
             )
@@ -227,9 +238,22 @@ fun WeekendRunSection() {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(routeList) { route ->
-                RouteCard(route)
+                WorkoutCardVisible(route)
             }
         }
+    }
+}
+
+@Composable
+fun WorkoutCardVisible(route: Route) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+        exit = fadeOut()
+    ) {
+        RouteCard(route)
     }
 }
 
@@ -266,13 +290,13 @@ val routeList = listOf(
 // RouteCard composable: Card displaying a route with image, title, and details
 @Composable
 fun RouteCard(route: Route) {
-    // Card with rounded corners and dark background
+    // Card with rounded corners and theme surface background
     Card(
         modifier = Modifier
             .width(320.dp)
             .height(380.dp),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         // Column for image and details
         Column(modifier = Modifier.fillMaxSize()) {
@@ -319,7 +343,7 @@ fun RouteCard(route: Route) {
                     text = route.title,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 22.sp
                     )
                 )
@@ -346,7 +370,7 @@ fun RouteCard(route: Route) {
                     Text(
                         text = "${route.distance} (${route.time}) • ${route.elevation}",
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                     )
@@ -386,13 +410,13 @@ val workoutList = listOf(
 // WorkoutCard composable: Card displaying a workout with icon, title, description, and duration
 @Composable
 fun WorkoutCard(workout: Workout) {
-    // Card with dark background
+    // Card with theme surface background
     Card(
         modifier = Modifier
             .width(320.dp)
             .height(130.dp),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         // Row for icon and text
         Row(
@@ -438,14 +462,14 @@ fun WorkoutCard(workout: Workout) {
                     text = workout.title,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 20.sp
                     )
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = workout.description,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 18.sp
@@ -456,7 +480,7 @@ fun WorkoutCard(workout: Workout) {
             Icon(
                 Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.7f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(28.dp)
             )
         }
@@ -474,10 +498,12 @@ fun Color.lighten(factor: Float): Color {
 }
 
 // Preview for HomeScreen
-@Preview(showBackground = true, device = "spec:width=411dp,height=891dp", backgroundColor = 0xFF000000)
+@Preview(showBackground = true, device = "spec:width=411dp,height=891dp")
 @Composable
 fun HomeScreenPreview() {
-    HomeScreen(navController = rememberNavController())
+    RunTrackTheme(darkTheme = false) {
+        HomeScreen(navController = rememberNavController())
+    }
 }
 
 // SearchScreen composable: Screen for searching friends and clubs with tabs, search field, and people list
@@ -501,22 +527,22 @@ fun SearchScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Search", color = Color.White) },
+                title = { Text("Search", color = MaterialTheme.colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigate(Screen.Home.route) }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF181818))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
-        containerColor = Color.Black,
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             // Bottom bar with invite friends button
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .background(Color.Black)
+                    .background(MaterialTheme.colorScheme.background)
                     .padding(16.dp)
             ) {
                 Button(
@@ -538,8 +564,8 @@ fun SearchScreen(navController: NavController) {
             // Tab row for Friends and Clubs
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = Color.Black,
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.primary
             ) {
                 tabTitles.forEachIndexed { index, title ->
                     Tab(
@@ -548,12 +574,10 @@ fun SearchScreen(navController: NavController) {
                         text = {
                             Text(
                                 title,
-                                color = if (selectedTab == index) Color.White else Color(0xFFBDBDBD),
+                                color = if (selectedTab == index) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
                             )
-                        },
-                        selectedContentColor = Color.White,
-                        unselectedContentColor = Color(0xFFBDBDBD)
+                        }
                     )
                 }
             }
@@ -567,12 +591,17 @@ fun SearchScreen(navController: NavController) {
                 TextField(
                     value = searchText,
                     onValueChange = { searchText = it },
-                    placeholder = { Text("Search on Enerva", color = Color(0xFFBDBDBD)) },
+                    placeholder = { Text("Search on Enerva", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color(0xFFBDBDBD))
+                        Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     },
                     shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    )
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -591,8 +620,8 @@ fun SearchScreen(navController: NavController) {
                 )
                 iconData.forEach { (icon, label) ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(32.dp))
-                        Text(label, color = Color.White, fontSize = 14.sp, fontWeight = if (label == "Suggest") FontWeight.Bold else FontWeight.Normal)
+                        Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(32.dp))
+                        Text(label, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp, fontWeight = if (label == "Suggest") FontWeight.Bold else FontWeight.Normal)
                     }
                 }
             }
@@ -600,7 +629,7 @@ fun SearchScreen(navController: NavController) {
             // Header for people you may know
             Text(
                 "PEOPLE YOU MAY KNOW",
-                color = Color(0xFFBDBDBD),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -628,7 +657,7 @@ fun SearchScreen(navController: NavController) {
                         ) {
                             Text(
                                 "No results found for \"$searchText\"",
-                                color = Color(0xFFBDBDBD),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 16.sp
                             )
                         }
@@ -642,18 +671,18 @@ fun SearchScreen(navController: NavController) {
                             Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF181818)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
                                 Modifier.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Rounded.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+                                Icon(Icons.Rounded.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(40.dp))
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(name, color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text(location, color = Color(0xFFBDBDBD), fontSize = 13.sp)
+                                    Text(name, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                                    Text(location, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                                     if (subtitle.isNotEmpty()) Text(subtitle, color = Color(0xFFFF9800), fontSize = 12.sp)
                                 }
                                 // Follow button that toggles to Followed
@@ -673,7 +702,7 @@ fun SearchScreen(navController: NavController) {
                                 ) {
                                     Text(
                                         if (isFollowed) "Followed" else "Follow",
-                                        color = Color.White
+                                        color = if (isFollowed) Color.White else Color(0xFFFF5722)
                                     )
                                 }
                             }
@@ -688,31 +717,31 @@ fun SearchScreen(navController: NavController) {
 // MapsScreen composable: Placeholder for maps screen
 @Composable
 fun MapsScreen() {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        Text(text = "Maps Screen", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+        Text(text = "Maps Screen", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
     }
 }
 
 // RecordScreen composable: Placeholder for record screen
 @Composable
 fun RecordScreen() {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        Text(text = "Record Screen", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+        Text(text = "Record Screen", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
     }
 }
 
 // GroupsScreen composable: Placeholder for groups screen
 @Composable
 fun GroupsScreen() {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        Text(text = "Groups Screen", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+        Text(text = "Groups Screen", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
     }
 }
 
 // YouScreen composable: Placeholder for you screen
 @Composable
 fun YouScreen() {
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-        Text(text = "You Screen", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+        Text(text = "You Screen", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
     }
 }
