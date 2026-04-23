@@ -1,5 +1,5 @@
 // Package declaration for the app
-package com.example.a211198_hasif_drnelson_lab3
+package com.example.a211198_hasif_drnelson_lab4
 
 // Imports for Android and Compose components
 import android.os.Bundle
@@ -24,13 +24,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.a211198_hasif_drnelson_lab3.ui.theme.RunTrackTheme
+import com.example.a211198_hasif_drnelson_lab4.ui.theme.RunTrackTheme
 
 // Main activity class that extends ComponentActivity
 class MainActivity : ComponentActivity() {
@@ -53,6 +54,9 @@ class MainActivity : ComponentActivity() {
 fun MainScreen() {
     // Remember the navigation controller
     val navController = rememberNavController()
+    
+    // ViewModel Integration: Instance of UserViewModel to be shared
+    val userViewModel: UserViewModel = viewModel()
     
     // Scaffold with bottom navigation bar
     Scaffold(
@@ -128,13 +132,14 @@ fun MainScreen() {
                 )
             }
         ) {
-            // Define composable routes for each screen
-            composable(Screen.Home.route) { HomeScreen(navController = navController) }
-            composable(Screen.Search.route) { SearchScreen(navController = navController,) }
+            // Define composable routes for each screen, passing userViewModel where needed
+            composable(Screen.Home.route) { HomeScreen(navController = navController, userViewModel = userViewModel) }
+            composable(Screen.Search.route) { SearchScreen(navController = navController) }
+            composable(Screen.Profile.route) { ProfileScreen(navController = navController, userViewModel = userViewModel) }
             composable(Screen.Maps.route) { MapsScreen() }
             composable(Screen.Record.route) { RecordScreen() }
             composable(Screen.Groups.route) { GroupsScreen() }
-            composable(Screen.You.route) { YouScreen() }
+            composable(Screen.You.route) { YouScreen(userViewModel = userViewModel) }
         }
     }
 }

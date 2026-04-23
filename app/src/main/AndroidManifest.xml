@@ -12,12 +12,12 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.A211198_Hasif_DrNelson_Lab3">
+        android:theme="@style/Theme.A211198_Hasif_DrNelson_Lab4">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.A211198_Hasif_DrNelson_Lab3">
+            android:theme="@style/Theme.A211198_Hasif_DrNelson_Lab4">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

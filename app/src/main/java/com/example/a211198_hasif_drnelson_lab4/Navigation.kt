@@ -1,5 +1,5 @@
 // Package declaration for the navigation-related classes
-package com.example.a211198_hasif_drnelson_lab3
+package com.example.a211198_hasif_drnelson_lab4
 
 // Imports for Compose icons used in navigation
 import androidx.compose.material.icons.Icons
@@ -26,6 +26,9 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object You : Screen("you", "You", Icons.Rounded.Person)
     // Search screen object
     object Search : Screen("search", "Search", Icons.Rounded.Search)
+
+    // profile screen object
+    object Profile : Screen("profile", "Profile", Icons.Rounded.Person)
 }
 
 // List of screens to display in the bottom navigation bar
