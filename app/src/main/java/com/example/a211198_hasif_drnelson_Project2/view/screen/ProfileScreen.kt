@@ -50,20 +50,33 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.a211198_hasif_drnelson_Project2.R
-import com.example.a211198_hasif_drnelson_Project2.model.sampleGalleryActivities
 import com.example.a211198_hasif_drnelson_Project2.view.Screen
+import com.example.a211198_hasif_drnelson_Project2.view.userGalleryRoute
+import com.example.a211198_hasif_drnelson_Project2.view_model.GalleryViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 
 // ProfileScreen composable: Matched with image and using Material Theme tokens
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(userViewModel: UserViewModel, navController: NavController) {
+fun ProfileScreen(
+    userViewModel: UserViewModel,
+    navController: NavController,
+    galleryViewModel: GalleryViewModel = viewModel(factory = GalleryViewModel.Factory)
+) {
     val userData = userViewModel.userProfile
     val primaryColor = MaterialTheme.colorScheme.primary
     val isFollowing = userViewModel.isFollowing(userData.runnerName)
+
+    // Profile gallery = only this user's own posts.
+    androidx.compose.runtime.LaunchedEffect(userData.email, userData.runnerName) {
+        if (userData.email.isNotBlank()) {
+            galleryViewModel.showMyPosts(userData.email, userData.runnerName.ifBlank { "You" })
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -83,7 +96,8 @@ fun ProfileScreen(userViewModel: UserViewModel, navController: NavController) {
                         Icon(Icons.Rounded.Share, contentDescription = "Gallery", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = {
-                        // Log out: clear the whole back stack and return to Login.
+                        // Log out: clear the active session, then return to Login.
+                        userViewModel.logout()
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -114,7 +128,7 @@ fun ProfileScreen(userViewModel: UserViewModel, navController: NavController) {
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     AsyncImage(
-                        model = R.drawable.hasif_profile,
+                        model = userData.photoUri ?: R.drawable.hasif_profile,
                         contentDescription = "Profile Picture",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -238,34 +252,41 @@ fun ProfileScreen(userViewModel: UserViewModel, navController: NavController) {
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                val gallery = sampleGalleryActivities(userData.runnerName)
-                // Manual 3-col grid: we're inside a verticalScroll Column so a
-                // LazyVerticalGrid can't measure here — chunk into rows instead.
-                Column(
-                    modifier = Modifier.padding(horizontal = 2.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    gallery.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            row.forEach { item ->
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(1f)
-                                        .clickable { navController.navigate(Screen.Gallery.route) }
-                                ) {
-                                    AsyncImage(
-                                        model = item.imageRes,
-                                        contentDescription = item.caption,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
+                val gallery = galleryViewModel.reels
+                if (gallery.isEmpty()) {
+                    Text(
+                        "No posts yet. Tap + on Gallery to share your first run.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 2.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        gallery.chunked(3).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                row.forEach { item ->
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(1f)
+                                            .clickable {
+                                                navController.navigate(userGalleryRoute(item.author))
+                                            }
+                                    ) {
+                                        AsyncImage(
+                                            model = item.imageUri ?: item.imageRes,
+                                            contentDescription = item.caption,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
                                 }
-                            }
-                            // Pad the last (possibly short) row with invisible cells
-                            // so the remaining tiles stay left-aligned and square.
-                            repeat(3 - row.size) {
-                                Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                                repeat(3 - row.size) {
+                                    Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                                }
                             }
                         }
                     }

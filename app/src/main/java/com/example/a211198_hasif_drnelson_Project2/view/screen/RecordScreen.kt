@@ -34,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModel
+import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.view_model.TrackPoint
 import com.example.a211198_hasif_drnelson_Project2.view_model.formatElapsed
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -49,7 +50,7 @@ import com.google.android.gms.location.Priority
 @Composable
 fun RecordScreen(
     navController: NavController? = null,
-    recordViewModel: RecordViewModel = viewModel()
+    recordViewModel: RecordViewModel = viewModel(factory = RecordViewModelFactory)
 ) {
     val colors = MaterialTheme.colorScheme
     val context = LocalContext.current

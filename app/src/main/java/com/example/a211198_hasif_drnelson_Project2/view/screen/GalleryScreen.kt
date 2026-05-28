@@ -19,19 +19,25 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -52,7 +58,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.a211198_hasif_drnelson_Project2.model.GalleryActivity
-import com.example.a211198_hasif_drnelson_Project2.model.sampleGalleryActivities
+import com.example.a211198_hasif_drnelson_Project2.view_model.GalleryViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 
@@ -64,12 +70,63 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 fun GalleryScreen(
     navController: NavController? = null,
     userViewModel: UserViewModel = viewModel(),
-    messageViewModel: MessageViewModel = viewModel()
+    messageViewModel: MessageViewModel = viewModel(),
+    galleryViewModel: GalleryViewModel = viewModel(factory = GalleryViewModel.Factory),
+    // When non-null, view that user's gallery (not the current user's own).
+    authorName: String? = null
 ) {
     val myName = userViewModel.userProfile.runnerName.ifBlank { "You" }
-    val reels = sampleGalleryActivities(myName)
-    val pagerState = rememberPagerState(pageCount = { reels.size })
+    val myEmail = userViewModel.userProfile.email
 
+    // Switch the underlying VM into the right mode whenever inputs change.
+    androidx.compose.runtime.LaunchedEffect(authorName, myEmail) {
+        if (authorName != null) {
+            galleryViewModel.showAuthorGallery(authorName)
+        } else if (myEmail.isNotBlank()) {
+            galleryViewModel.showFeed(myEmail, myName)
+        }
+    }
+
+    val reels = galleryViewModel.reels
+
+    // Create-post is only available on the user's own feed view (not when
+    // visiting someone else's gallery).
+    var showCreate by remember { mutableStateOf(false) }
+    if (showCreate) {
+        CreatePostDialog(
+            onDismiss = { showCreate = false },
+            onCreate = { caption, activity, distance, uri ->
+                galleryViewModel.createPost(caption, activity, distance, uri)
+                showCreate = false
+            }
+        )
+    }
+
+    if (reels.isEmpty()) {
+        // Either still seeding (own mode) or the visited user has no posts.
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            if (authorName != null) {
+                Text(
+                    "$authorName hasn't posted any reels yet.",
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp)
+                )
+            }
+            if (authorName == null) {
+                FloatingActionButton(
+                    onClick = { showCreate = true },
+                    containerColor = Color.White,
+                    contentColor = Color.Black,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(24.dp)
+                ) { Icon(Icons.Rounded.Add, contentDescription = "Create post") }
+            }
+        }
+        return
+    }
+
+    val pagerState = rememberPagerState(pageCount = { reels.size })
     // Per-reel like state — survives page swipes within this screen.
     val liked = remember { mutableStateMapOf<String, Boolean>() }
     val likeBumps = remember { mutableStateMapOf<String, Int>() }
@@ -108,6 +165,16 @@ fun GalleryScreen(
                 }
             )
         }
+        if (authorName == null) {
+            FloatingActionButton(
+                onClick = { showCreate = true },
+                containerColor = Color.White,
+                contentColor = Color.Black,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 110.dp, end = 24.dp)
+            ) { Icon(Icons.Rounded.Add, contentDescription = "Create post") }
+        }
     }
 }
 
@@ -122,9 +189,9 @@ private fun ReelPage(
     onFollow: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Background image — fills the page.
+        // Background image — fills the page. Prefer the user-picked URI if set.
         AsyncImage(
-            model = reel.imageRes,
+            model = reel.imageUri ?: reel.imageRes,
             contentDescription = reel.caption,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -256,6 +323,94 @@ private fun ReelActionButton(
         }
         Text(label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
     }
+}
+
+@Composable
+private fun CreatePostDialog(
+    onDismiss: () -> Unit,
+    onCreate: (caption: String, activity: String, distance: String, imageUri: String?) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var caption by remember { mutableStateOf("") }
+    var activity by remember { mutableStateOf("Run") }
+    var distance by remember { mutableStateOf("") }
+    var pickedUri by remember { mutableStateOf<String?>(null) }
+
+    // System photo picker — modern, no storage permission needed.
+    val pickMedia = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            // Persist read access across process restarts so AsyncImage can
+            // load this URI later. Wrapped in try/catch because some pickers
+            // don't grant persistable permission (e.g. cloud media providers).
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) { /* non-persistable URI is fine for this session */ }
+            pickedUri = uri.toString()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Post") },
+        text = {
+            Column {
+                OutlinedButton(
+                    onClick = {
+                        pickMedia.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (pickedUri == null) "Pick a photo" else "Photo selected ✓")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = caption,
+                    onValueChange = { caption = it },
+                    label = { Text("Caption") },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row {
+                    OutlinedTextField(
+                        value = activity,
+                        onValueChange = { activity = it },
+                        label = { Text("Activity") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedTextField(
+                        value = distance,
+                        onValueChange = { distance = it },
+                        label = { Text("Distance km") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(caption, activity, distance, pickedUri) },
+                enabled = pickedUri != null || caption.isNotBlank()
+            ) { Text("Post") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @androidx.compose.ui.tooling.preview.Preview

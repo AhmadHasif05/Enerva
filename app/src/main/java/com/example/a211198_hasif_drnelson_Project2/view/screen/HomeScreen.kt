@@ -45,8 +45,9 @@ import coil.compose.AsyncImage
 import com.example.a211198_hasif_drnelson_Project2.model.GalleryActivity
 import com.example.a211198_hasif_drnelson_Project2.model.RunRoute
 import com.example.a211198_hasif_drnelson_Project2.model.routeList
-import com.example.a211198_hasif_drnelson_Project2.model.sampleGalleryActivities
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.a211198_hasif_drnelson_Project2.view.Screen
+import com.example.a211198_hasif_drnelson_Project2.view_model.GalleryViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 import com.example.a211198_hasif_drnelson_Project2.view.components.HomeTopBar
 import com.example.a211198_hasif_drnelson_Project2.ui.theme.RunTrackTheme
@@ -82,19 +83,9 @@ fun HomeScreen(navController: NavController, userViewModel: UserViewModel) {
             }
         }
 
-        FloatingActionButton(
-            onClick = { navController.navigate(Screen.Record.route) },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 24.dp, end = 16.dp)
-                .size(64.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(8.dp)
-        ) {
-            Icon(Icons.Rounded.Add, contentDescription = "Add Workout", modifier = Modifier.size(32.dp))
-        }
+        // The orange + FAB is rendered globally in MainActivity so it can
+        // overlap the bottom nav bar at the Record tab. Kept out of this
+        // screen's Box on purpose.
     }
 }
 
@@ -104,8 +95,17 @@ fun HomeScreen(navController: NavController, userViewModel: UserViewModel) {
 // but shows gallery image tiles. "See all" jumps to Profile where the full
 // gallery grid lives.
 @Composable
-fun GallerySection(userViewModel: UserViewModel, onSeeAll: () -> Unit = {}) {
-    val activities = sampleGalleryActivities(userViewModel.userProfile.runnerName)
+fun GallerySection(
+    userViewModel: UserViewModel,
+    onSeeAll: () -> Unit = {},
+    galleryViewModel: GalleryViewModel = viewModel(factory = GalleryViewModel.Factory)
+) {
+    val myEmail = userViewModel.userProfile.email
+    val myName = userViewModel.userProfile.runnerName.ifBlank { "You" }
+    LaunchedEffect(myEmail, myName) {
+        if (myEmail.isNotBlank()) galleryViewModel.showMyPosts(myEmail, myName)
+    }
+    val activities = galleryViewModel.reels
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -133,12 +133,21 @@ fun GallerySection(userViewModel: UserViewModel, onSeeAll: () -> Unit = {}) {
             }
         }
         Spacer(modifier = Modifier.height(20.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(activities) { activity ->
-                GalleryImageTile(activity = activity, onClick = onSeeAll)
+        if (activities.isEmpty()) {
+            Text(
+                "No posts yet. Capture a run on the Gallery tab.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(activities) { activity ->
+                    GalleryImageTile(activity = activity, onClick = onSeeAll)
+                }
             }
         }
     }
@@ -154,7 +163,7 @@ fun GalleryImageTile(activity: GalleryActivity, onClick: () -> Unit = {}) {
             .clickable(onClick = onClick)
     ) {
         AsyncImage(
-            model = activity.imageRes,
+            model = activity.imageUri ?: activity.imageRes,
             contentDescription = activity.caption,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -270,13 +279,8 @@ fun RouteCard(route: RunRoute, saved: Boolean = false, onSaveToggle: () -> Unit 
 
 fun Color.lighten(factor: Float): Color = Color(red = (red + (1f - red) * factor), green = (green + (1f - green) * factor), blue = (blue + (1f - blue) * factor), alpha = alpha)
 
-@Preview(showBackground = true, device = "spec:width=411dp,height=891dp")
-@Composable
-fun HomeScreenPreview() {
-    RunTrackTheme(darkTheme = false) {
-        HomeScreen(navController = rememberNavController(), userViewModel = UserViewModel())
-    }
-}
+// Preview removed: UserViewModel is now an AndroidViewModel and can't be
+// instantiated without an Application context. Use device run for layout checks.
 
 
 

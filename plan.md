@@ -73,7 +73,7 @@ Pure UI/navigation restructure — no new tech yet. **Compiles clean (`BUILD SUC
 
 ---
 
-## 4. Phase 2 — Room (local persistence) — IN PROGRESS 🚧
+## 4. Phase 2 — Room (local persistence) — DONE ✅
 
 1. Entities: `UserEntity`, `ActivityRecordEntity` (saved run → also a reel), `MessageEntity`, `GroupEntity`, `MediaEntity` (reel item).
 2. DAOs with suspend / `Flow` queries.
@@ -120,6 +120,6 @@ Pure UI/navigation restructure — no new tech yet. **Compiles clean (`BUILD SUC
 
 ## 8. Order of work
 
-Phase 0 (rename ✅) → Phase 1 (trim ✅) → **Phase 2 (Room) ← current** → Phase 3 (Firebase) → Phase 4 (Maps) → Phase 5 (Camera).
+Phase 0 (rename ✅) → Phase 1 (trim ✅) → Phase 2 (Room ✅) → **Phase 3 (Firebase) ← next** → Phase 4 (Maps) → Phase 5 (Camera).
 
 Each phase ends buildable. Phases 3 & 4 need credentials from you (Firebase project file, Maps API key).

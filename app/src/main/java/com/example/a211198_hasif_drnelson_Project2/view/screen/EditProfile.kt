@@ -45,6 +45,31 @@ fun EditProfileScreen(
     var personalGoal by remember { mutableStateOf(current.personalGoal) }
     var bio by remember { mutableStateOf(current.bio) }
     var levelMenuOpen by remember { mutableStateOf(false) }
+    var photoUri by remember { mutableStateOf(current.photoUri) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pickPhoto = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            // Persist read access so AsyncImage can load this URI across process restarts.
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) { /* non-persistable provider; still usable this session */ }
+            photoUri = uri.toString()
+            userViewModel.updatePhotoUri(photoUri)
+        }
+    }
+    val launchPicker: () -> Unit = {
+        pickPhoto.launch(
+            androidx.activity.result.PickVisualMediaRequest(
+                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+            )
+        )
+    }
 
     val isValid = name.isNotBlank()
 
@@ -105,10 +130,10 @@ fun EditProfileScreen(
                     .size(112.dp)
                     .clip(CircleShape)
                     .background(colors.surfaceVariant)
-                    .clickable { /* TODO: pick image */ }
+                    .clickable { launchPicker() }
             ) {
                 AsyncImage(
-                    model = R.drawable.hasif_profile,
+                    model = photoUri ?: R.drawable.hasif_profile,
                     contentDescription = "Profile Picture",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -122,7 +147,7 @@ fun EditProfileScreen(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .padding(top = 8.dp)
-                    .clickable { /* TODO */ }
+                    .clickable { launchPicker() }
             )
 
             Spacer(modifier = Modifier.height(24.dp))

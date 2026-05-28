@@ -1,70 +1,144 @@
 package com.example.a211198_hasif_drnelson_Project2.view_model
 
-// Compose state delegates — let us write `var name by mutableStateOf(...)`
-// and have the UI recompose automatically when the value changes.
+import android.app.Application
+import android.content.Context
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
+import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
+import com.example.a211198_hasif_drnelson_Project2.data.entities.FollowEntity
+import com.example.a211198_hasif_drnelson_Project2.data.entities.SavedRouteEntity
+import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
 import com.example.a211198_hasif_drnelson_Project2.model.RunRoute
 import com.example.a211198_hasif_drnelson_Project2.model.UserData
+import com.example.a211198_hasif_drnelson_Project2.model.routeList
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
-// UserViewModel is the single source of truth for the active user.
-// It survives configuration changes (rotation) because it lives in the
-// ViewModel store — Compose just reads the current values via state.
-class UserViewModel : ViewModel() {
+// Persistence-backed user state. Compose-readable mutableStateOf surfaces are
+// kept identical to the original in-memory ViewModel so screens don't change.
+// Source of truth is Room; mutableStateOf values are mirrors refreshed from
+// flows + suspend reads.
+class UserViewModel(application: Application) : AndroidViewModel(application) {
 
-    // The user data captured during signup. Null until registerUser() is called.
-    // `private set` means only this class can write to it from the outside.
+    private val db = AppDatabase.get(application)
+    private val userDao = db.userDao()
+    private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
+
+    // The user data captured during signup (the last one registered in this session).
     var registeredUser by mutableStateOf<UserData?>(null)
         private set
 
-    // The currently logged-in user's profile. Edited by EditProfileScreen.
+    // The currently logged-in user's profile.
     var userProfile by mutableStateOf(UserData())
         private set
 
-    // Map of "friendName -> isFollowed". Compose-observable so SearchScreen
-    // and ProfileScreen redraw when the follow state flips.
+    // Friend follow state mirror, keyed by friend display name.
     private val followedPeople = mutableStateMapOf<String, Boolean>()
 
-    // Weekend-run routes the user has bookmarked, keyed by route title.
-    // Compose-observable so the Profile's "Saved" section redraws on save/unsave.
+    // Saved weekend routes mirror, keyed by title.
     private val savedRoutesByTitle = mutableStateMapOf<String, RunRoute>()
 
-    // Snapshot of saved routes for the UI to render.
     val savedRoutes: List<RunRoute>
         get() = savedRoutesByTitle.values.toList()
 
-    // Called when the user submits the signup form.
-    fun registerUser(name: String, email: String) {
-        registeredUser = UserData(runnerName = name, email = email)
-    }
+    // Other registered users — drives discovery on SearchScreen.
+    var otherUsers by mutableStateOf<List<UserData>>(emptyList())
+        private set
 
-    // Try to log in. Returns true on success so MainActivity knows whether
-    // to navigate to Home or stay on the LoginScreen.
-    fun loginUser(email: String): Boolean {
-        return if (registeredUser?.email == email) {
-            // Email matches what was used during signup → log in as that user.
-            userProfile = registeredUser!!
-            true
-        } else if (email == "hasif@gmail.com") {
-            // Hard-coded fallback for testing without going through signup first.
-            userProfile = UserData(runnerName = "Hasif Azizan", email = email)
-            true
-        } else {
-            false
+    // Lookup helper: returns the registered user with this display name, or null.
+    suspend fun findUserByName(name: String): UserData? =
+        userDao.findByName(name)?.toModel()
+
+    init {
+        // Restore the active session if there is one.
+        prefs.getString(KEY_ACTIVE_EMAIL, null)?.let { email ->
+            viewModelScope.launch {
+                userDao.findByEmail(email)?.let { entity ->
+                    userProfile = entity.toModel()
+                    registeredUser = entity.toModel()
+                    startObserving(email)
+                }
+            }
         }
     }
 
-    // Signs the user in with a Google account. With no real OAuth backend, this
-    // logs in as the registered user if one exists, otherwise a mock Google user.
-    fun loginWithGoogle() {
-        userProfile = registeredUser
-            ?: UserData(runnerName = "Google User", email = "googleuser@gmail.com")
+    // ---- registration / login ----
+
+    fun registerUser(
+        name: String,
+        email: String,
+        onResult: (Boolean, String?) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            if (userDao.findByEmail(email) != null) {
+                onResult(false, "That email is already registered")
+                return@launch
+            }
+            val seed = UserData(runnerName = name, email = email)
+            userDao.upsertUser(seed.toEntity())
+            registeredUser = seed
+            onResult(true, null)
+        }
     }
 
-    // Used by EditProfileScreen — overwrites every editable field at once.
+    /**
+     * Result is delivered via [onResult] on the main thread.
+     * true = user found (or seeded fallback) and is now logged in.
+     */
+    fun loginUser(email: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val existing = userDao.findByEmail(email)
+            val resolved = when {
+                existing != null -> existing
+                email == "hasif@gmail.com" -> {
+                    // Hard-coded fallback for testing; seed the row so we have a real user.
+                    val seed = UserData(runnerName = "Hasif Azizan", email = email).toEntity()
+                    userDao.upsertUser(seed)
+                    seed
+                }
+                else -> null
+            }
+            if (resolved != null) {
+                userProfile = resolved.toModel()
+                registeredUser = resolved.toModel()
+                setActiveEmail(email)
+                startObserving(email)
+                onResult(true)
+            } else {
+                onResult(false)
+            }
+        }
+    }
+
+    fun loginWithGoogle() {
+        viewModelScope.launch {
+            val seed = registeredUser
+                ?: UserData(runnerName = "Google User", email = "googleuser@gmail.com")
+            userDao.upsertUser(seed.toEntity())
+            userProfile = seed
+            setActiveEmail(seed.email)
+            startObserving(seed.email)
+        }
+    }
+
+    fun logout() {
+        prefs.edit().remove(KEY_ACTIVE_EMAIL).apply()
+        userProfile = UserData()
+        followedPeople.clear()
+        savedRoutesByTitle.clear()
+    }
+
+    // ---- profile edits ----
+
     fun updateProfile(
         name: String,
         email: String,
@@ -73,7 +147,7 @@ class UserViewModel : ViewModel() {
         personalGoal: String,
         bio: String
     ) {
-        userProfile = userProfile.copy(
+        val updated = userProfile.copy(
             runnerName = name,
             email = email,
             location = location,
@@ -81,46 +155,158 @@ class UserViewModel : ViewModel() {
             personalGoal = personalGoal,
             bio = bio
         )
+        userProfile = updated
+        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
     }
 
-    // Returns true if the route is in the user's saved list.
-    fun isRouteSaved(title: String): Boolean = savedRoutesByTitle.containsKey(title)
-
-    // Toggle whether a weekend-run route is saved to the user's profile.
-    fun toggleRouteSave(route: RunRoute) {
-        if (savedRoutesByTitle.containsKey(route.title)) {
-            savedRoutesByTitle.remove(route.title)
-        } else {
-            savedRoutesByTitle[route.title] = route
-        }
-    }
-
-    // Helpers for partial updates (kept for backwards compatibility).
     fun updateEmail(email: String) {
-        userProfile = userProfile.copy(email = email)
+        val updated = userProfile.copy(email = email)
+        userProfile = updated
+        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
+    }
+
+    fun updatePhotoUri(photoUri: String?) {
+        val updated = userProfile.copy(photoUri = photoUri)
+        userProfile = updated
+        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
     }
 
     fun updateRunnerName(runnerName: String) {
-        userProfile = userProfile.copy(runnerName = runnerName)
+        val updated = userProfile.copy(runnerName = runnerName)
+        userProfile = updated
+        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
     }
 
-    // Returns true if the current user is following the named person.
+    // ---- follows ----
+
     fun isFollowing(name: String): Boolean = followedPeople[name] == true
 
-    // Toggle follow state for `name` and bump the user's `following` counter.
-    // The counter is reflected on ProfileScreen automatically because it reads
-    // userProfile (which is mutableStateOf, so Compose tracks reads).
     fun toggleFollow(name: String) {
+        val owner = userProfile.email
+        if (owner.isBlank()) return
         val currentlyFollowing = isFollowing(name)
-        if (currentlyFollowing) {
-            followedPeople[name] = false
-            userProfile = userProfile.copy(
-                // coerceAtLeast keeps the count from going negative due to bugs.
-                following = (userProfile.following - 1).coerceAtLeast(0)
-            )
-        } else {
-            followedPeople[name] = true
-            userProfile = userProfile.copy(following = userProfile.following + 1)
+        viewModelScope.launch {
+            if (currentlyFollowing) {
+                userDao.removeFollow(owner, name)
+            } else {
+                userDao.addFollow(FollowEntity(owner, name))
+            }
+            // Update my own following count.
+            val followingCount = userDao.observeFollowing(owner).first().size
+            val updatedMe = userProfile.copy(following = followingCount)
+            userProfile = updatedMe
+            userDao.upsertUser(updatedMe.toEntity())
+
+            // Mirror to the followee: if they're a registered user, refresh
+            // their followers count from the follows table so it shows up
+            // next time they log in (or right away if they're observing).
+            val followee = userDao.findByName(name)
+            if (followee != null) {
+                val followers = userDao.countFollowersOf(name)
+                userDao.upsertUser(followee.copy(followers = followers))
+            }
+        }
+    }
+
+    // ---- saved routes ----
+
+    fun isRouteSaved(title: String): Boolean = savedRoutesByTitle.containsKey(title)
+
+    fun toggleRouteSave(route: RunRoute) {
+        val owner = userProfile.email
+        if (owner.isBlank()) return
+        viewModelScope.launch {
+            if (savedRoutesByTitle.containsKey(route.title)) {
+                userDao.unsaveRoute(owner, route.title)
+            } else {
+                userDao.saveRoute(route.toEntity(owner))
+            }
+        }
+    }
+
+    // ---- private helpers ----
+
+    private fun setActiveEmail(email: String) {
+        prefs.edit().putString(KEY_ACTIVE_EMAIL, email).apply()
+    }
+
+    private fun startObserving(email: String) {
+        viewModelScope.launch {
+            userDao.observeFollowing(email).collect { names ->
+                followedPeople.clear()
+                names.forEach { followedPeople[it] = true }
+            }
+        }
+        viewModelScope.launch {
+            userDao.observeSavedRoutes(email).collect { rows ->
+                savedRoutesByTitle.clear()
+                rows.forEach { row -> row.toModel()?.let { savedRoutesByTitle[row.title] = it } }
+            }
+        }
+        viewModelScope.launch {
+            userDao.observeByEmail(email).collect { entity ->
+                if (entity != null) userProfile = entity.toModel()
+            }
+        }
+        viewModelScope.launch {
+            userDao.observeAllExcept(email).collect { entities ->
+                otherUsers = entities.map { it.toModel() }
+            }
+        }
+    }
+
+    companion object {
+        private const val KEY_ACTIVE_EMAIL = "activeEmail"
+
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+                    as RunTrackApplication
+                UserViewModel(app)
+            }
         }
     }
 }
+
+// ---- mappers (file-private, kept next to the VM that owns them) ----
+
+private fun UserData.toEntity() = UserEntity(
+    email = email,
+    runnerName = runnerName,
+    location = location,
+    fitnessLevel = fitnessLevel,
+    personalGoal = personalGoal,
+    bio = bio,
+    following = following,
+    followers = followers,
+    photoUri = photoUri
+)
+
+private fun UserEntity.toModel() = UserData(
+    runnerName = runnerName,
+    email = email,
+    location = location,
+    fitnessLevel = fitnessLevel,
+    personalGoal = personalGoal,
+    bio = bio,
+    following = following,
+    followers = followers,
+    photoUri = photoUri
+)
+
+private fun RunRoute.toEntity(ownerEmail: String) = SavedRouteEntity(
+    ownerEmail = ownerEmail,
+    title = title,
+    distance = distance,
+    time = time,
+    elevation = elevation,
+    difficulty = difficulty,
+    imageRes = imageRes
+)
+
+// Saved routes are matched back to the in-memory `routeList` so screens reuse
+// the same drawable + label formatting. If a stored route no longer matches
+// (e.g. resource id moved across rebuilds), it is filtered out by the caller.
+private fun SavedRouteEntity.toModel(): RunRoute? =
+    routeList.firstOrNull { it.title == title }
+        ?: RunRoute(title, distance, time, elevation, difficulty, imageRes)

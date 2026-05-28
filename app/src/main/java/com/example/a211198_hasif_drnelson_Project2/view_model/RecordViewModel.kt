@@ -2,18 +2,32 @@ package com.example.a211198_hasif_drnelson_Project2.view_model
 
 // SystemClock.elapsedRealtime() is monotonic — it can't go backwards even if
 // the user changes the device clock. Best choice for measuring elapsed time.
+import android.app.Application
+import android.content.Context
 import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.a211198_hasif_drnelson_Project2.R
+import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
+import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
+import com.example.a211198_hasif_drnelson_Project2.data.entities.ActivityRecordEntity
+import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // Math helpers for the Haversine distance formula below.
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -24,7 +38,10 @@ import kotlin.math.sqrt
 data class TrackPoint(val lat: Double, val lng: Double, val timeMs: Long)
 
 // Backs RecordScreen. Owns timer + GPS-derived stats + breadcrumb path.
-class RecordViewModel : ViewModel() {
+class RecordViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val activityDao = AppDatabase.get(application).activityDao()
+    private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
 
     // True while the play button is engaged. Pause flips it to false.
     var isRecording by mutableStateOf(false)
@@ -109,6 +126,45 @@ class RecordViewModel : ViewModel() {
         }
     }
 
+    // Persist the current run to Room. Inserts both an ActivityRecord and a
+    // gallery MediaEntity so the activity shows up in the reels feed. Safe to
+    // call from a button — does nothing if there's no recorded distance yet.
+    fun saveActivity(type: String = "Run", caption: String = "New run") {
+        if (elapsedSeconds == 0L && distanceKm == 0.0) return
+        val email = prefs.getString("activeEmail", null).orEmpty()
+        if (email.isBlank()) return
+        val now = System.currentTimeMillis()
+        val dateStr = SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(now))
+        val record = ActivityRecordEntity(
+            id = UUID.randomUUID().toString(),
+            ownerEmail = email,
+            type = type,
+            title = caption,
+            date = dateStr,
+            distanceKm = distanceKm,
+            durationMinutes = (elapsedSeconds / 60).toInt(),
+            elevationM = 0,
+            avgPace = formatElapsed(elapsedSeconds)
+        )
+        val media = MediaEntity(
+            id = UUID.randomUUID().toString(),
+            ownerEmail = email,
+            author = "You",
+            caption = caption,
+            activity = type,
+            distanceKm = "%.1f".format(distanceKm),
+            tint = 0xFF1E3A5F,
+            imageRes = R.drawable.lakesidetrail,
+            imageUri = null,
+            likes = 0,
+            createdAtMs = now
+        )
+        viewModelScope.launch {
+            activityDao.insertActivity(record)
+            activityDao.insertMedia(media)
+        }
+    }
+
     // Great-circle distance between two lat/lng pairs in kilometres.
     // Standard Haversine formula — accurate enough for activity tracking.
     private fun haversineKm(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
@@ -120,6 +176,14 @@ class RecordViewModel : ViewModel() {
             sin(dLng / 2).let { it * it }
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return r * c
+    }
+}
+
+val RecordViewModelFactory: ViewModelProvider.Factory = viewModelFactory {
+    initializer {
+        val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+            as RunTrackApplication
+        RecordViewModel(app)
     }
 }
 

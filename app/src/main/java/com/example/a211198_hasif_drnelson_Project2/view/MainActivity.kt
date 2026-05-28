@@ -10,10 +10,18 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.RadioButtonChecked
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -23,6 +31,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -69,9 +80,10 @@ fun MainApp() {
     // Remember the navigation controller
     val navController = rememberNavController()
 
-    // ViewModel Integration: instances shared across screens
-    val userViewModel: UserViewModel = viewModel()
-    val messageViewModel: MessageViewModel = viewModel()
+    // ViewModel Integration: instances shared across screens, backed by Room.
+    val userViewModel: UserViewModel = viewModel(factory = UserViewModel.Factory)
+    val messageViewModel: MessageViewModel = viewModel(factory = MessageViewModel.Factory)
+    val context = LocalContext.current
 
     // Get current back stack entry and destination
     val navBackStackEntry by navController.currentBackStackEntryAsState() //Keeps track of which screen the user is currently looking at
@@ -80,6 +92,11 @@ fun MainApp() {
     // Hide the bottom bar on the auth screens (Login + Signup).
     val authRoutes = listOf(Screen.Login.route, Screen.Signup.route)
     val shouldShowBottomBar = currentDestination?.route !in authRoutes
+
+    // Wrap Scaffold in a Box so the orange + FAB can render *over* the bottom
+    // nav bar (specifically on the Record tab). Inside Scaffold's content slot
+    // we'd be constrained above the nav bar.
+    Box(modifier = Modifier.fillMaxSize()) {
 
     // Scaffold with bottom navigation bar
     Scaffold( // pre-made layout helper to avoid overlap
@@ -161,21 +178,25 @@ fun MainApp() {
                     onGoogleSignIn = {
                         // Sign in with Google, then go to Home.
                         userViewModel.loginWithGoogle()
+                        messageViewModel.setActiveUser(
+                            userViewModel.userProfile.email.ifBlank { "googleuser@gmail.com" }
+                        )
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
                     },
                     onContinueClick = { name: String, email: String ->
-                        // Attempt to login - validates that credentials match signup data
-                        val loginSuccess = userViewModel.loginUser(email)
-
-                        if (loginSuccess) {
-                            // If login is successful, navigate to Home
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Login.route) { inclusive = true }
+                        // Attempt to login - validates that credentials match signup data.
+                        // Login is async (Room read), so we navigate from the callback.
+                        userViewModel.loginUser(email) { success ->
+                            if (success) {
+                                messageViewModel.setActiveUser(email)
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                }
                             }
+                            // Login failed -> user stays on LoginScreen.
                         }
-                        // Login failed -> user stays on LoginScreen.
                     }
                 )
             }
@@ -185,10 +206,19 @@ fun MainApp() {
                 SignupScreen(
                     onBackClick = { navController.popBackStack() },
                     onSignupComplete = { name: String, email: String ->
-                        // Register user with both name and email
-                        userViewModel.registerUser(name, email)
-                        // Navigate back to Login so the user can sign in.
-                        navController.popBackStack()
+                        // Register the user — rejects duplicate emails. Only
+                        // pop back to Login on success; otherwise show the error.
+                        userViewModel.registerUser(name, email) { ok, error ->
+                            if (ok) {
+                                navController.popBackStack()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    error ?: "Signup failed",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     }
                 )
             }
@@ -236,6 +266,19 @@ fun MainApp() {
                 )
             }
             composable(
+                route = Screen.UserGallery.route,
+                arguments = listOf(androidx.navigation.navArgument("authorName") { type = androidx.navigation.NavType.StringType })
+            ) { backStackEntry ->
+                val raw = backStackEntry.arguments?.getString("authorName") ?: ""
+                val authorName = java.net.URLDecoder.decode(raw, "UTF-8")
+                GalleryScreen(
+                    navController = navController,
+                    userViewModel = userViewModel,
+                    messageViewModel = messageViewModel,
+                    authorName = authorName
+                )
+            }
+            composable(
                 route = Screen.Chat.route,
                 arguments = listOf(androidx.navigation.navArgument("friendName") { type = androidx.navigation.NavType.StringType })
             ) { backStackEntry ->
@@ -246,6 +289,33 @@ fun MainApp() {
                     friendName = friendName,
                     messageViewModel = messageViewModel
                 )
+            }
+        }
+    }
+
+        // Orange + FAB overlay — sits on top of the bottom nav bar over the
+        // Record tab. Visible only when the bottom nav is showing.
+        if (shouldShowBottomBar) {
+            FloatingActionButton(
+                onClick = {
+                    navController.navigate(Screen.Record.route) {
+                        launchSingleTop = true
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // Nav bar is ~80dp tall; FAB is 80dp. Bottom padding of 40dp
+                    // places the FAB's vertical center on the nav bar's top
+                    // edge — half above, half below — and the larger size
+                    // visually covers the Record tab.
+                    .padding(bottom = 40.dp)
+                    .size(80.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
+            ) {
+                Icon(Icons.Rounded.RadioButtonChecked, contentDescription = "Record", modifier = Modifier.size(40.dp))
             }
         }
     }

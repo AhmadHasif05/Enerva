@@ -57,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.a211198_hasif_drnelson_Project2.view.Screen
 import com.example.a211198_hasif_drnelson_Project2.view.chatRoute
+import com.example.a211198_hasif_drnelson_Project2.view.userGalleryRoute
 import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 import kotlinx.coroutines.launch
@@ -94,13 +95,24 @@ fun SearchScreen(
         )
     }
 
-    val people = listOf(
+    // Hardcoded discovery suggestions, kept as warm-start data.
+    val curatedPeople = listOf(
         Triple("Anette Visser", "Hantum, Friesland", "Fan favorite on Strava"),
         Triple("Liyana Rahman", "Jerantut, Pahang", "Local Legend near you"),
         Triple("Mohd Khairol Azani", "Local Legend near you", ""),
         Triple("Helly M", "Marin, CA", "Fan favorite on Strava"),
         Triple("boy ezwan", "Local Legend near you", "")
     )
+    // Real registered users (from Room) are surfaced above the curated list so
+    // someone you just signed up with shows up as a discoverable runner.
+    val registeredPeople = userViewModel.otherUsers.map { user ->
+        Triple(
+            user.runnerName.ifBlank { user.email },
+            user.location,
+            "Runner on Enerva"
+        )
+    }
+    val people = (registeredPeople + curatedPeople).distinctBy { it.first }
 
     // Suggested groups the user can one-tap join. Each entry carries default
     // members so the resulting Conversation has a member list to display.
@@ -207,6 +219,7 @@ fun SearchScreen(
                     people = people,
                     searchText = searchText,
                     userViewModel = userViewModel,
+                    onOpenProfile = { name -> navController.navigate(userGalleryRoute(name)) },
                     onFollow = { name ->
                         val wasFollowing = userViewModel.isFollowing(name)
                         userViewModel.toggleFollow(name)
@@ -259,6 +272,7 @@ private fun ColumnScope.FriendsContent(
     people: List<Triple<String, String, String>>,
     searchText: String,
     userViewModel: UserViewModel,
+    onOpenProfile: (String) -> Unit,
     onFollow: (String) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -296,7 +310,8 @@ private fun ColumnScope.FriendsContent(
                 Card(
                     Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 4.dp)
+                        .clickable { onOpenProfile(name) },
                     colors = CardDefaults.cardColors(containerColor = colors.surface),
                     shape = RoundedCornerShape(12.dp)
                 ) {
