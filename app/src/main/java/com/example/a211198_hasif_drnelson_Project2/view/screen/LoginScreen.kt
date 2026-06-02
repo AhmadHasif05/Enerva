@@ -14,9 +14,18 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,14 +37,25 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.LoginViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    onContinueClick: (String, String) -> Unit = { _, _ -> },       // (name, email) callback after the user taps Continue
+    onContinueClick: (String, String) -> Unit = { _, _ -> },       // (email, password) callback after the user taps Continue
     onGoogleSignIn: () -> Unit = {},                               // Logs the user in via Google
     onSignUpClick: () -> Unit = {},                                // Sends the user to the Sign Up screen
+    onForgotPassword: (String, (Boolean, String?) -> Unit) -> Unit = { _, cb -> cb(false, "Not wired") },
     loginViewModel: LoginViewModel = viewModel()                   // Form state lives here so it survives rotation
 ) {
-    // Read the current email and the validity flag from the ViewModel.
     val email = loginViewModel.email
+    val password = loginViewModel.password
     val isValid = loginViewModel.isValid
+    var passwordVisible by remember { mutableStateOf(false) }
+    var showForgotDialog by remember { mutableStateOf(false) }
+
+    if (showForgotDialog) {
+        ForgotPasswordDialog(
+            initialEmail = email,
+            onDismiss = { showForgotDialog = false },
+            onSend = onForgotPassword
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -81,11 +101,58 @@ fun LoginScreen(
                 shape = RoundedCornerShape(8.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Continue button — disabled until the email looks valid.
+            // Password field — show/hide eye toggle, min 6 chars enforced by validator.
+            OutlinedTextField(
+                value = password,
+                onValueChange = loginViewModel::onPasswordChange,
+                label = { Text("Password", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    focusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = if (passwordVisible) VisualTransformation.None
+                                       else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Filled.Visibility
+                                          else Icons.Filled.VisibilityOff,
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp)
+            )
+
+            // "Forgot password?" link — aligned to the end, opens the reset dialog.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { showForgotDialog = true }) {
+                    Text(
+                        text = "Forgot password?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Continue button — disabled until email + password are valid.
             Button(
-                onClick = { onContinueClick("", email) }, // First arg unused on this screen
+                onClick = { onContinueClick(email, password) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -184,6 +251,71 @@ fun LoginScreen(
             )
         }
     }
+}
+
+// Forgot password dialog — collects an email and calls onSend, which delegates
+// to AuthRepository.sendPasswordReset via the ViewModel.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ForgotPasswordDialog(
+    initialEmail: String,
+    onDismiss: () -> Unit,
+    onSend: (String, (Boolean, String?) -> Unit) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var dialogEmail by remember { mutableStateOf(initialEmail) }
+    var sending by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = { if (!sending) onDismiss() },
+        title = { Text("Reset password") },
+        text = {
+            Column {
+                Text(
+                    "Enter your account email. We'll send you a link to reset your password.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = dialogEmail,
+                    onValueChange = { dialogEmail = it },
+                    label = { Text("Email") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    singleLine = true,
+                    enabled = !sending,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !sending && dialogEmail.contains('@'),
+                onClick = {
+                    sending = true
+                    onSend(dialogEmail.trim()) { success, error ->
+                        sending = false
+                        if (success) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Reset email sent. Check your inbox.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            onDismiss()
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                error ?: "Could not send reset email",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            ) { Text(if (sending) "Sending..." else "Send reset link") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !sending) { Text("Cancel") }
+        }
+    )
 }
 
 // Reusable outlined button used for the social login options.

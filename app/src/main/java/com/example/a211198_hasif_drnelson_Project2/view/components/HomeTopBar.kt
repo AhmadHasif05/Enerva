@@ -34,7 +34,7 @@ import com.example.a211198_hasif_drnelson_Project2.view.Screen
 // `navController` is passed in so each tap can route the user to the
 // appropriate screen (Profile / Messages / Search / Notifications).
 @Composable
-fun HomeTopBar(navController: NavController) {
+fun HomeTopBar(navController: NavController, photoUri: String? = null) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -63,7 +63,7 @@ fun HomeTopBar(navController: NavController) {
                     .clickable { navController.navigate(Screen.Profile.route) }
             ) {
                 AsyncImage(
-                    model = R.drawable.hasif_profile,
+                    model = photoUri ?: R.drawable.hasif_profile,
                     contentDescription = "Profile Picture",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

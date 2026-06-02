@@ -27,6 +27,13 @@ interface UserDao {
     @Query("SELECT * FROM users WHERE runnerName = :name LIMIT 1")
     suspend fun findByName(name: String): UserEntity?
 
+    // ---- firebase uid mapping (5.3 backfills this on cloud sign-in) ----
+    @Query("SELECT * FROM users WHERE firebaseUid = :uid LIMIT 1")
+    suspend fun findByFirebaseUid(uid: String): UserEntity?
+
+    @Query("UPDATE users SET firebaseUid = :uid WHERE email = :email")
+    suspend fun setFirebaseUid(email: String, uid: String)
+
     // ---- saved routes ----
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveRoute(route: SavedRouteEntity)
@@ -49,4 +56,8 @@ interface UserDao {
 
     @Query("SELECT COUNT(*) FROM follows WHERE friendName = :name")
     suspend fun countFollowersOf(name: String): Int
+
+    // Keep follow rows pointing at the renamed user by their new display name.
+    @Query("UPDATE follows SET friendName = :newName WHERE friendName = :oldName")
+    suspend fun renameFollowFriend(oldName: String, newName: String)
 }

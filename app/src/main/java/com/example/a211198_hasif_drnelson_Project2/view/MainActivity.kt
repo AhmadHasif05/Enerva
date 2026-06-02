@@ -30,20 +30,26 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
+import com.example.a211198_hasif_drnelson_Project2.BuildConfig
+import com.example.a211198_hasif_drnelson_Project2.data.repository.GoogleSignInHelper
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
 import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 import com.example.a211198_hasif_drnelson_Project2.ui.theme.RunTrackTheme
@@ -84,6 +90,16 @@ fun MainApp() {
     val userViewModel: UserViewModel = viewModel(factory = UserViewModel.Factory)
     val messageViewModel: MessageViewModel = viewModel(factory = MessageViewModel.Factory)
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Credential Manager helper for "Continue with Google". Web client ID is
+    // injected from local.properties via BuildConfig; blank → not configured.
+    val googleSignInHelper = remember { GoogleSignInHelper(BuildConfig.GOOGLE_WEB_CLIENT_ID) }
+
+    // Start on Home if Firebase already has a signed-in user (e.g. after a restart).
+    val app = context.applicationContext as RunTrackApplication
+    val startRoute = if (app.authRepository.currentUser != null) Screen.Home.route
+                     else Screen.Login.route
 
     // Get current back stack entry and destination
     val navBackStackEntry by navController.currentBackStackEntryAsState() //Keeps track of which screen the user is currently looking at
@@ -121,8 +137,13 @@ fun MainApp() {
                             onClick = {
                                 // Navigate to the selected screen
                                 navController.navigate(screen.route) {
-                                    // Pop up to the start destination, saving state
-                                    popUpTo(navController.graph.findStartDestination().id) {
+                                    // Pop up to Home — the stable base of the logged-in
+                                    // experience. We can't use the graph's start
+                                    // destination here: it may be the Login route, which
+                                    // is popped inclusive after sign-in and so no longer
+                                    // exists on the back stack (popUpTo would match
+                                    // nothing and the stack would grow unbounded).
+                                    popUpTo(Screen.Home.route) {
                                         saveState = true
                                     }
                                     // Launch single top and restore state
@@ -147,7 +168,7 @@ fun MainApp() {
         // Navigation host for handling screen navigation with animations
         NavHost(
             navController = navController,
-            startDestination = Screen.Login.route,
+            startDestination = startRoute,
             modifier = Modifier.padding(if (shouldShowBottomBar) innerPadding else PaddingValues(0.dp)),
             enterTransition = {  // slide from left + fade in
                 fadeIn(animationSpec = tween(300)) + slideIntoContainer(
@@ -176,47 +197,67 @@ fun MainApp() {
                 LoginScreen(
                     onSignUpClick = { navController.navigate(Screen.Signup.route) },
                     onGoogleSignIn = {
-                        // Sign in with Google, then go to Home.
-                        userViewModel.loginWithGoogle()
-                        messageViewModel.setActiveUser(
-                            userViewModel.userProfile.email.ifBlank { "googleuser@gmail.com" }
-                        )
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
+                        scope.launch {
+                            try {
+                                val idToken = googleSignInHelper.getIdToken(context)
+                                userViewModel.loginWithGoogle(idToken) { success, error ->
+                                    if (success) {
+                                        messageViewModel.setActiveUser(userViewModel.userProfile.email)
+                                        navController.navigate(Screen.Home.route) {
+                                            popUpTo(Screen.Login.route) { inclusive = true }
+                                        }
+                                    } else {
+                                        android.util.Log.e("GoogleSignIn", "Firebase sign-in failed: $error")
+                                        Toast.makeText(context, error ?: "Google sign-in failed", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } catch (e: GetCredentialCancellationException) {
+                                // User dismissed the account picker — no-op, no toast spam.
+                            } catch (e: NoCredentialException) {
+                                Toast.makeText(context, "No Google account found on this device", Toast.LENGTH_SHORT).show()
+                            } catch (e: GoogleSignInHelper.NotConfiguredException) {
+                                Toast.makeText(context, "Google Sign-In not configured (missing Web client ID)", Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                android.util.Log.e("GoogleSignIn", "Credential flow failed", e)
+                                Toast.makeText(context, e.message ?: "Google sign-in failed", Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
-                    onContinueClick = { name: String, email: String ->
-                        // Attempt to login - validates that credentials match signup data.
-                        // Login is async (Room read), so we navigate from the callback.
-                        userViewModel.loginUser(email) { success ->
+                    onForgotPassword = { email, cb ->
+                        userViewModel.sendPasswordReset(email, cb)
+                    },
+                    onContinueClick = { email: String, password: String ->
+                        // Sign in against Firebase Auth. Async — navigate from the callback.
+                        userViewModel.loginUser(email, password) { success, error ->
                             if (success) {
                                 messageViewModel.setActiveUser(email)
                                 navController.navigate(Screen.Home.route) {
                                     popUpTo(Screen.Login.route) { inclusive = true }
                                 }
+                            } else {
+                                Toast.makeText(context, error ?: "Login failed", Toast.LENGTH_SHORT).show()
                             }
-                            // Login failed -> user stays on LoginScreen.
                         }
                     }
                 )
             }
 
-            // Signup Screen Route
+            // Signup Screen Route — creates a Firebase Auth user, seeds the local row, navigates Home.
             composable(Screen.Signup.route) {
                 SignupScreen(
                     onBackClick = { navController.popBackStack() },
-                    onSignupComplete = { name: String, email: String ->
-                        // Register the user — rejects duplicate emails. Only
-                        // pop back to Login on success; otherwise show the error.
-                        userViewModel.registerUser(name, email) { ok, error ->
+                    onSignupComplete = { name: String, email: String, password: String ->
+                        userViewModel.registerUser(name, email, password) { ok, error ->
                             if (ok) {
-                                navController.popBackStack()
+                                // Firebase auto-signs the new user in. Sign them out so they
+                                // have to log in explicitly on the Login screen.
+                                app.authRepository.signOut()
+                                Toast.makeText(context, "Account created. Please log in.", Toast.LENGTH_SHORT).show()
+                                navController.navigate(Screen.Login.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                }
                             } else {
-                                Toast.makeText(
-                                    context,
-                                    error ?: "Signup failed",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Toast.makeText(context, error ?: "Signup failed", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -240,7 +281,17 @@ fun MainApp() {
             composable(Screen.Profile.route) {
                 ProfileScreen(
                     navController = navController,
-                    userViewModel = userViewModel
+                    userViewModel = userViewModel,
+                    onLogout = {
+                        // Clear BOTH activity-scoped ViewModels' active user so the
+                        // next account starts clean (per-screen Gallery VMs are
+                        // disposed by the popUpTo(0) below).
+                        userViewModel.logout()
+                        messageViewModel.clearActiveUser()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 )
             }
             composable(Screen.EditProfile.route) {

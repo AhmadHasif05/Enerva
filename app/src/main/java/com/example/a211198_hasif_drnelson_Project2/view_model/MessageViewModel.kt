@@ -11,20 +11,21 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
-import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
-import com.example.a211198_hasif_drnelson_Project2.data.entities.ConversationEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MessageEntity
+import com.example.a211198_hasif_drnelson_Project2.data.repository.MessageRepository
 import com.example.a211198_hasif_drnelson_Project2.model.Conversation
 import com.example.a211198_hasif_drnelson_Project2.model.Message
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.util.UUID
 
-class MessageViewModel(application: Application) : AndroidViewModel(application) {
+// State holder for chats. All persistence + Firestore sync lives in
+// MessageRepository; this ViewModel mirrors repository flows into Compose state
+// and forwards user actions. Public surface unchanged → screens untouched.
+class MessageViewModel(
+    application: Application,
+    private val repository: MessageRepository
+) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.get(application)
-    private val dao = db.messageDao()
-    private val userDao = db.userDao()
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
 
     // Mirror of the persisted conversations, keyed by friendName.
@@ -58,6 +59,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         activeEmail = ""
         convoJob?.cancel()
         messagesJob?.cancel()
+        repository.stopSync()
         conversations.clear()
     }
 
@@ -67,147 +69,24 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun startConversationWith(friendName: String) {
         val owner = activeEmail.ifBlank { return }
         if (conversations.containsKey(friendName)) return
-        viewModelScope.launch {
-            val me = userDao.findByEmail(owner) ?: return@launch
-            val opening = Message(
-                fromMe = false,
-                text = "Hey! Thanks for the follow 👋 Let's go for a run sometime."
-            )
-            dao.upsertConversation(
-                ConversationEntity(owner, friendName, isGroup = false, membersCsv = "")
-            )
-            dao.insertMessage(opening.toEntity(owner, friendName))
-
-            // Mirror under the recipient so they see this chat too.
-            val recipient = userDao.findByName(friendName)
-            if (recipient != null && recipient.email != owner) {
-                if (dao.findConversation(recipient.email, me.runnerName) == null) {
-                    dao.upsertConversation(
-                        ConversationEntity(recipient.email, me.runnerName, isGroup = false, membersCsv = "")
-                    )
-                }
-                dao.insertMessage(
-                    MessageEntity(
-                        id = UUID.randomUUID().toString(),
-                        ownerEmail = recipient.email,
-                        friendName = me.runnerName,
-                        fromMe = false,
-                        text = "${me.runnerName} started following you 👋",
-                        timestampMs = System.currentTimeMillis()
-                    )
-                )
-            }
-        }
+        viewModelScope.launch { repository.startConversationWith(owner, friendName) }
     }
 
     fun sendMessage(friendName: String, text: String) {
         val owner = activeEmail.ifBlank { return }
         if (text.isBlank()) return
-        val msg = Message(fromMe = true, text = text.trim())
-        viewModelScope.launch {
-            val existing = dao.findConversation(owner, friendName)
-            val isGroup = existing?.isGroup == true
-            val membersCsv = existing?.membersCsv.orEmpty()
-            if (existing == null) {
-                dao.upsertConversation(
-                    ConversationEntity(owner, friendName, isGroup = false, membersCsv = "")
-                )
-            }
-            dao.insertMessage(msg.toEntity(owner, friendName))
-
-            val me = userDao.findByEmail(owner) ?: return@launch
-            if (isGroup) {
-                // Group chat — replicate the message under every registered member.
-                membersCsv.split(",")
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                    .forEach { memberName ->
-                        val memberUser = userDao.findByName(memberName) ?: return@forEach
-                        if (memberUser.email == owner) return@forEach
-                        if (dao.findConversation(memberUser.email, friendName) == null) {
-                            dao.upsertConversation(
-                                ConversationEntity(memberUser.email, friendName, isGroup = true, membersCsv = membersCsv)
-                            )
-                        }
-                        dao.insertMessage(
-                            MessageEntity(
-                                id = UUID.randomUUID().toString(),
-                                ownerEmail = memberUser.email,
-                                friendName = friendName,
-                                fromMe = false,
-                                text = "${me.runnerName}: ${msg.text}",
-                                timestampMs = msg.timestampMs
-                            )
-                        )
-                    }
-            } else {
-                // 1:1 — friendName is the OTHER party's display name. Mirror to them.
-                val recipient = userDao.findByName(friendName)
-                if (recipient != null && recipient.email != owner) {
-                    if (dao.findConversation(recipient.email, me.runnerName) == null) {
-                        dao.upsertConversation(
-                            ConversationEntity(recipient.email, me.runnerName, isGroup = false, membersCsv = "")
-                        )
-                    }
-                    dao.insertMessage(
-                        MessageEntity(
-                            id = UUID.randomUUID().toString(),
-                            ownerEmail = recipient.email,
-                            friendName = me.runnerName,
-                            fromMe = false,
-                            text = msg.text,
-                            timestampMs = msg.timestampMs
-                        )
-                    )
-                }
-            }
-        }
+        viewModelScope.launch { repository.sendMessage(owner, friendName, text) }
     }
 
     fun removeConversation(friendName: String) {
         val owner = activeEmail.ifBlank { return }
-        viewModelScope.launch {
-            dao.deleteMessagesFor(owner, friendName)
-            dao.deleteConversation(owner, friendName)
-        }
+        viewModelScope.launch { repository.removeConversation(owner, friendName) }
     }
 
     fun createGroup(groupName: String, members: List<String>) {
         val owner = activeEmail.ifBlank { return }
-        val name = groupName.trim()
-        if (name.isBlank() || members.isEmpty() || conversations.containsKey(name)) return
-        val opening = Message(
-            fromMe = false,
-            text = "Group \"$name\" created with ${members.joinToString(", ")} 🎉"
-        )
-        val membersCsv = members.joinToString(",")
-        viewModelScope.launch {
-            // Creator's row.
-            dao.upsertConversation(
-                ConversationEntity(owner, name, isGroup = true, membersCsv = membersCsv)
-            )
-            dao.insertMessage(opening.toEntity(owner, name))
-
-            // Replicate the group + opening to every registered member so
-            // they actually see the group when they log in.
-            members.forEach { memberName ->
-                val memberUser = userDao.findByName(memberName) ?: return@forEach
-                if (memberUser.email == owner) return@forEach
-                dao.upsertConversation(
-                    ConversationEntity(memberUser.email, name, isGroup = true, membersCsv = membersCsv)
-                )
-                dao.insertMessage(
-                    MessageEntity(
-                        id = UUID.randomUUID().toString(),
-                        ownerEmail = memberUser.email,
-                        friendName = name,
-                        fromMe = false,
-                        text = opening.text,
-                        timestampMs = opening.timestampMs
-                    )
-                )
-            }
-        }
+        if (groupName.isBlank() || members.isEmpty() || conversations.containsKey(groupName.trim())) return
+        viewModelScope.launch { repository.createGroup(owner, groupName, members) }
     }
 
     // ---- private ----
@@ -215,8 +94,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private fun startObserving(email: String) {
         convoJob?.cancel()
         messagesJob?.cancel()
+        repository.startSync(viewModelScope, email)
         convoJob = viewModelScope.launch {
-            dao.observeConversations(email).collect { convos ->
+            repository.observeConversations(email).collect { convos ->
                 // Preserve any messages already loaded; just sync metadata.
                 val existing = conversations.toMap()
                 conversations.clear()
@@ -232,7 +112,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             }
         }
         messagesJob = viewModelScope.launch {
-            dao.observeAllMessages(email).collect { messages ->
+            repository.observeAllMessages(email).collect { messages ->
                 val grouped = messages.groupBy { it.friendName }
                 grouped.forEach { (friendName, msgs) ->
                     val existing = conversations[friendName] ?: Conversation(friendName)
@@ -249,20 +129,11 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as RunTrackApplication
-                MessageViewModel(app)
+                MessageViewModel(app, app.messageRepository)
             }
         }
     }
 }
-
-private fun Message.toEntity(ownerEmail: String, friendName: String) = MessageEntity(
-    id = id,
-    ownerEmail = ownerEmail,
-    friendName = friendName,
-    fromMe = fromMe,
-    text = text,
-    timestampMs = timestampMs
-)
 
 private fun MessageEntity.toModel() = Message(
     id = id,

@@ -37,4 +37,9 @@ interface ActivityDao {
 
     @Query("SELECT * FROM media ORDER BY createdAtMs DESC")
     fun observeAllMedia(): Flow<List<MediaEntity>>
+
+    // Propagate a display-name change to existing reels so the gallery stops
+    // showing the old author name after the user renames themselves.
+    @Query("UPDATE media SET author = :newName WHERE author = :oldName")
+    suspend fun renameAuthor(oldName: String, newName: String)
 }

@@ -5,33 +5,40 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 
-// Form state for SignupScreen — runner name + email plus a tiny validity check.
+// Form state for SignupScreen — runner name, email, password, confirm.
 class SignupViewModel : ViewModel() {
 
-    // Both fields use `private set` so updates can only happen via the
-    // explicit on*Change methods below — keeps mutation paths obvious.
     var name by mutableStateOf("")
         private set
 
     var email by mutableStateOf("")
         private set
 
-    fun onNameChange(value: String) {
-        name = value
-    }
+    var password by mutableStateOf("")
+        private set
 
-    fun onEmailChange(value: String) {
-        email = value
-    }
+    var confirmPassword by mutableStateOf("")
+        private set
 
-    // The "Sign Up" button stays disabled until both fields are filled in
-    // and the email at least contains an "@".
+    fun onNameChange(value: String) { name = value }
+    fun onEmailChange(value: String) { email = value }
+    fun onPasswordChange(value: String) { password = value }
+    fun onConfirmPasswordChange(value: String) { confirmPassword = value }
+
+    val passwordsMatch: Boolean
+        get() = password == confirmPassword
+
     val isValid: Boolean
-        get() = name.isNotBlank() && email.isNotBlank() && email.contains("@")
+        get() = name.isNotBlank()
+            && email.isNotBlank()
+            && email.contains("@")
+            && password.length >= 6
+            && passwordsMatch
 
-    // Clear the form (e.g. after the user successfully signs up).
     fun reset() {
         name = ""
         email = ""
+        password = ""
+        confirmPassword = ""
     }
 }

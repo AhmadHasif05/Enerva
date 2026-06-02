@@ -6,25 +6,29 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 
 // Holds the form state for LoginScreen so it survives rotation, and
-// keeps the validation rule in one place.
+// keeps the validation rules in one place.
 class LoginViewModel : ViewModel() {
 
-    // Email typed into the form. private set → only onEmailChange can mutate it.
     var email by mutableStateOf("")
         private set
 
-    // Called from the OutlinedTextField's onValueChange callback.
+    var password by mutableStateOf("")
+        private set
+
     fun onEmailChange(value: String) {
         email = value
     }
 
-    // Computed property — the "Continue" button is enabled when this is true.
-    // Trivial check (non-blank + contains "@") is enough for this demo.
-    val isValid: Boolean
-        get() = email.isNotBlank() && email.contains("@")
+    fun onPasswordChange(value: String) {
+        password = value
+    }
 
-    // Wipe the field, e.g. after a successful login.
+    // Firebase Auth requires passwords of at least 6 characters.
+    val isValid: Boolean
+        get() = email.isNotBlank() && email.contains("@") && password.length >= 6
+
     fun reset() {
         email = ""
+        password = ""
     }
 }

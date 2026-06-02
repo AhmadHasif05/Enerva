@@ -71,7 +71,10 @@ fun HomeScreen(navController: NavController, userViewModel: UserViewModel) {
                     .statusBarsPadding()
                     .verticalScroll(rememberScrollState())
             ) {
-                HomeTopBar(navController = navController)
+                HomeTopBar(
+                    navController = navController,
+                    photoUri = userViewModel.userProfile.photoUri
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 GallerySection(
                     userViewModel = userViewModel,
