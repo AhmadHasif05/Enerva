@@ -7,12 +7,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -22,13 +30,18 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.SignupViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(
-    onBackClick: () -> Unit = {},                                  // Pop back to the welcome screen
-    onSignupComplete: (String, String) -> Unit = { _, _ -> },      // (name, email) — caller registers + navigates
-    signupViewModel: SignupViewModel = viewModel()                 // Form state lives here
+    onBackClick: () -> Unit = {},                                                  // Pop back to the welcome screen
+    onSignupComplete: (String, String, String) -> Unit = { _, _, _ -> },           // (name, email, password) — caller registers + navigates
+    signupViewModel: SignupViewModel = viewModel()                                 // Form state lives here
 ) {
     val name = signupViewModel.name
     val email = signupViewModel.email
+    val password = signupViewModel.password
+    val confirmPassword = signupViewModel.confirmPassword
     val isValid = signupViewModel.isValid
+    val showMismatch = confirmPassword.isNotEmpty() && !signupViewModel.passwordsMatch
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmVisible by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -112,11 +125,79 @@ fun SignupScreen(
                 shape = RoundedCornerShape(8.dp)
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Password field (min 6 chars).
+            OutlinedTextField(
+                value = password,
+                onValueChange = signupViewModel::onPasswordChange,
+                label = { Text("Password (min 6 chars)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    focusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = if (passwordVisible) VisualTransformation.None
+                                       else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Filled.Visibility
+                                          else Icons.Filled.VisibilityOff,
+                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Confirm password field — supportingText flips to an inline mismatch warning.
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = signupViewModel::onConfirmPasswordChange,
+                label = { Text("Confirm Password", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                modifier = Modifier.fillMaxWidth(),
+                isError = showMismatch,
+                supportingText = if (showMismatch) { { Text("Passwords don't match") } } else null,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    focusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = if (confirmVisible) VisualTransformation.None
+                                       else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { confirmVisible = !confirmVisible }) {
+                        Icon(
+                            imageVector = if (confirmVisible) Icons.Filled.Visibility
+                                          else Icons.Filled.VisibilityOff,
+                            contentDescription = if (confirmVisible) "Hide password" else "Show password",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp)
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Sign Up button — only enabled once the form is valid.
             Button(
-                onClick = { onSignupComplete(name, email) },
+                onClick = { onSignupComplete(name, email, password) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),

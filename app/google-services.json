@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "95395130249",
+    "project_id": "enerva-be887",
+    "storage_bucket": "enerva-be887.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:95395130249:android:88781b220009ffee944f58",
+        "android_client_info": {
+          "package_name": "com.example.a211198_hasif_drnelson_Project2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "95395130249-e58vqot19d3f2i0dcpphibng7k7ouhkr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.a211198_hasif_drnelson_Project2",
+            "certificate_hash": "f2d9932f4f6cdf1fef1deb0d1b9c7cccc531fdde"
+          }
+        },
+        {
+          "client_id": "95395130249-bobte28qkg23hugm5krvf1335ppu6i8f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC596A2kx_q8jxgOvyinZ5fAKxaA15u8Tg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "95395130249-bobte28qkg23hugm5krvf1335ppu6i8f.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

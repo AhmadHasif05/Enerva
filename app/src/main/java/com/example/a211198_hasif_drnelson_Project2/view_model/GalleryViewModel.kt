@@ -12,8 +12,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.R
 import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
-import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
+import com.example.a211198_hasif_drnelson_Project2.data.repository.GalleryRepository
 import com.example.a211198_hasif_drnelson_Project2.model.GalleryActivity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -22,15 +22,19 @@ import java.util.UUID
 // Backs both the bottom-nav Gallery (a cross-user feed) and the per-profile
 // gallery on ProfileScreen (this user's own posts only).
 //
+// Persistence + own-media cloud sync live in GalleryRepository; this ViewModel
+// holds the display mode, the demo seeding scaffolding (local-only), and mirrors
+// the chosen repository flow into Compose state.
+//
 // Three modes via the show* methods:
-//   - showFeed: every reel from every user (the social feed)
+//   - showFeed: every reel from every user (the local social feed)
 //   - showMyPosts: only the active user's own reels (their profile gallery)
 //   - showAuthorGallery(name): another user's gallery (visiting a profile)
-class GalleryViewModel(application: Application) : AndroidViewModel(application) {
+class GalleryViewModel(
+    application: Application,
+    private val repository: GalleryRepository
+) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.get(application)
-    private val dao = db.activityDao()
-    private val userDao = db.userDao()
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
 
     var reels by mutableStateOf<List<GalleryActivity>>(emptyList())
@@ -43,10 +47,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         // Seed-only on init. Caller picks the mode via show* — this avoids a
         // race where Profile briefly shows feed data before switching to mine.
         if (activeEmail.isNotBlank()) {
-            viewModelScope.launch {
-                val name = userDao.findByEmail(activeEmail)?.runnerName ?: "You"
-                seedIfNeeded(activeEmail, name)
-            }
+            viewModelScope.launch { seedIfNeeded(activeEmail, "You") }
         }
     }
 
@@ -57,7 +58,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             seedIfNeeded(email, displayName)
             seedDemoAuthorsIfNeeded()
-            observeFeed()
+            repository.startMineSync(viewModelScope, email)
+            observe(repository.observeFeed())
         }
     }
 
@@ -67,18 +69,14 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         activeEmail = email
         viewModelScope.launch {
             seedIfNeeded(email, displayName)
-            observeMine(email)
+            repository.startMineSync(viewModelScope, email)
+            observe(repository.observeMine(email))
         }
     }
 
     /** Another user's profile gallery. */
     fun showAuthorGallery(authorName: String) {
-        observeJob?.cancel()
-        observeJob = viewModelScope.launch {
-            dao.observeMediaByAuthor(authorName).collect { rows ->
-                reels = rows.map { it.toModel() }
-            }
-        }
+        observe(repository.observeByAuthor(authorName))
     }
 
     /**
@@ -93,43 +91,37 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     ) {
         val email = activeEmail.ifBlank { return }
         viewModelScope.launch {
-            val authorName = userDao.findByEmail(email)?.runnerName ?: "You"
-            dao.insertMedia(
-                MediaEntity(
-                    id = UUID.randomUUID().toString(),
-                    ownerEmail = email,
-                    author = authorName,
-                    caption = caption.ifBlank { "New post" },
-                    activity = activity.ifBlank { "Run" },
-                    distanceKm = distanceKm.ifBlank { "0" },
-                    tint = 0xFF1E3A5F,
-                    imageRes = R.drawable.lakesidetrail,
-                    imageUri = imageUri,
-                    likes = 0,
-                    createdAtMs = System.currentTimeMillis()
-                )
-            )
+            repository.createPost(email, caption, activity, distanceKm, imageUri, R.drawable.lakesidetrail)
         }
     }
 
     fun clearActiveUser() {
         observeJob?.cancel()
+        repository.stopSync()
         activeEmail = ""
         reels = emptyList()
     }
 
     // ---- private ----
 
+    private fun observe(flow: kotlinx.coroutines.flow.Flow<List<MediaEntity>>) {
+        observeJob?.cancel()
+        observeJob = viewModelScope.launch {
+            flow.collect { rows -> reels = rows.map { it.toModel() } }
+        }
+    }
+
     private suspend fun seedIfNeeded(email: String, displayName: String) {
-        if (dao.countMedia(email) == 0) {
-            dao.insertAllMedia(seedReelsFor(email, displayName))
+        if (repository.countMedia(email) == 0) {
+            repository.insertAllMedia(seedReelsFor(email, displayName))
         }
     }
 
     /**
      * Seed a few demo authors so the cross-user Gallery feed has variety even
      * before other accounts sign up. Gated by a one-time prefs flag so it
-     * doesn't duplicate on every showFeed call.
+     * doesn't duplicate on every showFeed call. Local-only (demo runners have no
+     * cloud identity).
      */
     private suspend fun seedDemoAuthorsIfNeeded() {
         if (prefs.getBoolean(KEY_DEMO_SEED, false)) return
@@ -142,7 +134,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             DemoPost("daniel@demo.app", "Daniel Lee", "Long ride out to the coast", "Cycle", "42.1", R.drawable.lingkunganilmu),
             DemoPost("aisha@demo.app", "Aisha Rahman", "Hill repeats — brutal", "Run", "7.5", R.drawable.teratai),
         )
-        dao.insertAllMedia(demos.mapIndexed { i, d ->
+        repository.insertAllMedia(demos.mapIndexed { i, d ->
             MediaEntity(
                 id = UUID.randomUUID().toString(),
                 ownerEmail = d.ownerEmail,
@@ -168,24 +160,6 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         val distanceKm: String,
         val imageRes: Int
     )
-
-    private fun observeFeed() {
-        observeJob?.cancel()
-        observeJob = viewModelScope.launch {
-            dao.observeAllMedia().collect { rows ->
-                reels = rows.map { it.toModel() }
-            }
-        }
-    }
-
-    private fun observeMine(email: String) {
-        observeJob?.cancel()
-        observeJob = viewModelScope.launch {
-            dao.observeMedia(email).collect { rows ->
-                reels = rows.map { it.toModel() }
-            }
-        }
-    }
 
     private fun seedReelsFor(email: String, displayName: String): List<MediaEntity> {
         val now = System.currentTimeMillis()
@@ -218,7 +192,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as RunTrackApplication
-                GalleryViewModel(app)
+                GalleryViewModel(app, app.galleryRepository)
             }
         }
     }

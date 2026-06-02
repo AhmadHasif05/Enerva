@@ -14,4 +14,5 @@ data class UserData(
     val following: Int = 0,                                                            // How many runners the user follows
     val followers: Int = 0,                                                            // How many runners follow the user (derived from follows table)
     val photoUri: String? = null,                                                      // User-picked profile photo URI; null = use default drawable
+    val firebaseUid: String? = null,                                                   // Firebase Auth uid → Firestore doc id; null until first cloud sign-in on this device
 )

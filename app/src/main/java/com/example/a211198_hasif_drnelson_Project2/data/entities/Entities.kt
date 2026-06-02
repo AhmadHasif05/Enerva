@@ -1,10 +1,15 @@
 package com.example.a211198_hasif_drnelson_Project2.data.entities
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-// Registered users. Email is the natural key — login and follow lookups use it.
-@Entity(tableName = "users")
+// Registered users. Email stays the local primary key (every query + the offline
+// cache is keyed on it), but Firestore keys on the Firebase uid — so we carry
+// `firebaseUid` as an indexed column to map each local row to its cloud doc.
+// Null until the user first signs in against Firebase on this device (backfilled
+// by the repository layer in 5.3).
+@Entity(tableName = "users", indices = [Index("firebaseUid")])
 data class UserEntity(
     @PrimaryKey val email: String,
     val runnerName: String,
@@ -14,7 +19,8 @@ data class UserEntity(
     val bio: String,
     val following: Int,
     val followers: Int,
-    val photoUri: String? = null
+    val photoUri: String? = null,
+    val firebaseUid: String? = null
 )
 
 // A weekend route the user bookmarked. Composite key = ownerEmail+title.
@@ -52,15 +58,20 @@ data class ActivityRecordEntity(
 
 // A 1:1 or group conversation. friendName doubles as the group name when isGroup.
 // members stored as CSV — small enough that a join table is overkill.
+// `conversationId` is the shared, top-level Firestore conversation id that both
+// participants reference (uid-based). Null until reconciled by the repository
+// layer in 5.3; the local (ownerEmail, friendName) key still drives all queries.
 @Entity(tableName = "conversations", primaryKeys = ["ownerEmail", "friendName"])
 data class ConversationEntity(
     val ownerEmail: String,
     val friendName: String,
     val isGroup: Boolean,
-    val membersCsv: String
+    val membersCsv: String,
+    val conversationId: String? = null
 )
 
-// One chat message inside a conversation.
+// One chat message inside a conversation. `conversationId` mirrors the parent
+// ConversationEntity's shared Firestore id (null until reconciled in 5.3).
 @Entity(tableName = "messages")
 data class MessageEntity(
     @PrimaryKey val id: String,
@@ -68,7 +79,8 @@ data class MessageEntity(
     val friendName: String,
     val fromMe: Boolean,
     val text: String,
-    val timestampMs: Long
+    val timestampMs: Long,
+    val conversationId: String? = null
 )
 
 // One gallery reel — captured activity or seeded sample. author is the display

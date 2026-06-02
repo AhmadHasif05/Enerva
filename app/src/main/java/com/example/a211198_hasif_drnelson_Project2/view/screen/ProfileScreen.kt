@@ -65,6 +65,7 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 fun ProfileScreen(
     userViewModel: UserViewModel,
     navController: NavController,
+    onLogout: () -> Unit = {},
     galleryViewModel: GalleryViewModel = viewModel(factory = GalleryViewModel.Factory)
 ) {
     val userData = userViewModel.userProfile
@@ -96,11 +97,9 @@ fun ProfileScreen(
                         Icon(Icons.Rounded.Share, contentDescription = "Gallery", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = {
-                        // Log out: clear the active session, then return to Login.
-                        userViewModel.logout()
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
+                        // Log out: clears the active session across ViewModels and
+                        // returns to Login (handled by MainActivity).
+                        onLogout()
                     }) {
                         Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = "Log out", tint = MaterialTheme.colorScheme.onBackground)
                     }

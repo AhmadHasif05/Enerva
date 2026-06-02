@@ -7,31 +7,38 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
-import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
-import com.example.a211198_hasif_drnelson_Project2.data.entities.FollowEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.SavedRouteEntity
-import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
+import com.example.a211198_hasif_drnelson_Project2.data.repository.AuthRepository
+import com.example.a211198_hasif_drnelson_Project2.data.repository.UserRepository
 import com.example.a211198_hasif_drnelson_Project2.model.RunRoute
 import com.example.a211198_hasif_drnelson_Project2.model.UserData
 import com.example.a211198_hasif_drnelson_Project2.model.routeList
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-// Persistence-backed user state. Compose-readable mutableStateOf surfaces are
-// kept identical to the original in-memory ViewModel so screens don't change.
-// Source of truth is Room; mutableStateOf values are mirrors refreshed from
-// flows + suspend reads.
-class UserViewModel(application: Application) : AndroidViewModel(application) {
+// User-facing state holder. All persistence (Room cache + Firestore sync) lives in
+// UserRepository; this ViewModel only mirrors repository flows into Compose-readable
+// state and forwards user actions. Auth itself stays in AuthRepository.
+//
+// The mutableStateOf surfaces are kept identical to the original in-memory
+// ViewModel so screens don't change.
+class UserViewModel(
+    application: Application,
+    private val authRepository: AuthRepository,
+    private val userRepository: UserRepository
+) : AndroidViewModel(application) {
 
-    private val db = AppDatabase.get(application)
-    private val userDao = db.userDao()
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
+
+    // Active Room/Firestore observers. Held so logout (and re-login) can cancel them —
+    // otherwise a stale collector keeps writing the previous user's data into
+    // userProfile and the old account "comes back".
+    private val observerJobs = mutableListOf<Job>()
 
     // The user data captured during signup (the last one registered in this session).
     var registeredUser by mutableStateOf<UserData?>(null)
@@ -55,18 +62,14 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     // Lookup helper: returns the registered user with this display name, or null.
-    suspend fun findUserByName(name: String): UserData? =
-        userDao.findByName(name)?.toModel()
+    suspend fun findUserByName(name: String): UserData? = userRepository.findByName(name)
 
     init {
-        // Restore the active session if there is one.
-        prefs.getString(KEY_ACTIVE_EMAIL, null)?.let { email ->
+        // Restore the active session from Firebase Auth if there is one.
+        authRepository.currentUser?.let { fbUser ->
             viewModelScope.launch {
-                userDao.findByEmail(email)?.let { entity ->
-                    userProfile = entity.toModel()
-                    registeredUser = entity.toModel()
-                    startObserving(email)
-                }
+                val profile = userRepository.onSignIn(fbUser)
+                applyActiveSession(profile)
             }
         }
     }
@@ -76,63 +79,83 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     fun registerUser(
         name: String,
         email: String,
+        password: String,
         onResult: (Boolean, String?) -> Unit = { _, _ -> }
     ) {
         viewModelScope.launch {
-            if (userDao.findByEmail(email) != null) {
-                onResult(false, "That email is already registered")
-                return@launch
-            }
-            val seed = UserData(runnerName = name, email = email)
-            userDao.upsertUser(seed.toEntity())
-            registeredUser = seed
-            onResult(true, null)
+            authRepository.signUp(email, password).fold(
+                onSuccess = { authUser ->
+                    // Seed Room + the Firestore doc. No session is started here:
+                    // MainActivity signs the user back out and routes them to Login.
+                    registeredUser = userRepository.onSignUp(authUser, name)
+                    onResult(true, null)
+                },
+                onFailure = { e -> onResult(false, e.message ?: "Signup failed") }
+            )
         }
     }
 
     /**
      * Result is delivered via [onResult] on the main thread.
-     * true = user found (or seeded fallback) and is now logged in.
+     * Signs in against Firebase Auth; on success, hydrates the local profile.
      */
-    fun loginUser(email: String, onResult: (Boolean) -> Unit) {
+    fun loginUser(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val existing = userDao.findByEmail(email)
-            val resolved = when {
-                existing != null -> existing
-                email == "hasif@gmail.com" -> {
-                    // Hard-coded fallback for testing; seed the row so we have a real user.
-                    val seed = UserData(runnerName = "Hasif Azizan", email = email).toEntity()
-                    userDao.upsertUser(seed)
-                    seed
-                }
-                else -> null
-            }
-            if (resolved != null) {
-                userProfile = resolved.toModel()
-                registeredUser = resolved.toModel()
-                setActiveEmail(email)
-                startObserving(email)
-                onResult(true)
-            } else {
-                onResult(false)
-            }
+            authRepository.signIn(email, password).fold(
+                onSuccess = { authUser ->
+                    val profile = userRepository.onSignIn(authUser)
+                    applyActiveSession(profile)
+                    onResult(true, null)
+                },
+                onFailure = { e -> onResult(false, e.message ?: "Login failed") }
+            )
         }
     }
 
-    fun loginWithGoogle() {
+    /**
+     * Exchanges a Google ID token for a Firebase session, then hydrates the
+     * local profile — mirroring [loginUser]. On first login the display name
+     * comes from the Google account.
+     */
+    fun loginWithGoogle(idToken: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            val seed = registeredUser
-                ?: UserData(runnerName = "Google User", email = "googleuser@gmail.com")
-            userDao.upsertUser(seed.toEntity())
-            userProfile = seed
-            setActiveEmail(seed.email)
-            startObserving(seed.email)
+            authRepository.signInWithGoogle(idToken).fold(
+                onSuccess = { authUser ->
+                    // Guard hydration so onResult always fires — a Room/Firestore error
+                    // after sign-in must not leave the UI stuck on Login with no feedback.
+                    try {
+                        val profile = userRepository.onSignIn(authUser)
+                        applyActiveSession(profile)
+                        onResult(true, null)
+                    } catch (e: Exception) {
+                        android.util.Log.e("GoogleSignIn", "Profile hydration failed", e)
+                        onResult(false, e.message ?: "Failed to load profile after Google sign-in")
+                    }
+                },
+                onFailure = { e -> onResult(false, e.message ?: "Google sign-in failed") }
+            )
+        }
+    }
+
+    fun sendPasswordReset(email: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            authRepository.sendPasswordReset(email).fold(
+                onSuccess = { onResult(true, null) },
+                onFailure = { e -> onResult(false, e.message ?: "Could not send reset email") }
+            )
         }
     }
 
     fun logout() {
+        // Tear down the previous user's observers + cloud listeners FIRST, otherwise
+        // their collectors keep emitting and overwrite the cleared profile.
+        stopObserving()
+        userRepository.stopListeners()
+        authRepository.signOut()
         prefs.edit().remove(KEY_ACTIVE_EMAIL).apply()
         userProfile = UserData()
+        registeredUser = null
+        otherUsers = emptyList()
         followedPeople.clear()
         savedRoutesByTitle.clear()
     }
@@ -147,6 +170,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         personalGoal: String,
         bio: String
     ) {
+        val oldName = userProfile.runnerName
         val updated = userProfile.copy(
             runnerName = name,
             email = email,
@@ -156,25 +180,26 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
             bio = bio
         )
         userProfile = updated
-        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
+        viewModelScope.launch { userRepository.saveProfileWithRename(updated, oldName) }
     }
 
     fun updateEmail(email: String) {
         val updated = userProfile.copy(email = email)
         userProfile = updated
-        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
+        viewModelScope.launch { userRepository.saveProfile(updated) }
     }
 
     fun updatePhotoUri(photoUri: String?) {
         val updated = userProfile.copy(photoUri = photoUri)
         userProfile = updated
-        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
+        viewModelScope.launch { userRepository.saveProfile(updated) }
     }
 
     fun updateRunnerName(runnerName: String) {
+        val oldName = userProfile.runnerName
         val updated = userProfile.copy(runnerName = runnerName)
         userProfile = updated
-        viewModelScope.launch { userDao.upsertUser(updated.toEntity()) }
+        viewModelScope.launch { userRepository.saveProfileWithRename(updated, oldName) }
     }
 
     // ---- follows ----
@@ -184,27 +209,8 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleFollow(name: String) {
         val owner = userProfile.email
         if (owner.isBlank()) return
-        val currentlyFollowing = isFollowing(name)
         viewModelScope.launch {
-            if (currentlyFollowing) {
-                userDao.removeFollow(owner, name)
-            } else {
-                userDao.addFollow(FollowEntity(owner, name))
-            }
-            // Update my own following count.
-            val followingCount = userDao.observeFollowing(owner).first().size
-            val updatedMe = userProfile.copy(following = followingCount)
-            userProfile = updatedMe
-            userDao.upsertUser(updatedMe.toEntity())
-
-            // Mirror to the followee: if they're a registered user, refresh
-            // their followers count from the follows table so it shows up
-            // next time they log in (or right away if they're observing).
-            val followee = userDao.findByName(name)
-            if (followee != null) {
-                val followers = userDao.countFollowersOf(name)
-                userDao.upsertUser(followee.copy(followers = followers))
-            }
+            userRepository.toggleFollow(owner, userProfile.firebaseUid, name)
         }
     }
 
@@ -215,44 +221,62 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleRouteSave(route: RunRoute) {
         val owner = userProfile.email
         if (owner.isBlank()) return
+        val uid = userProfile.firebaseUid
         viewModelScope.launch {
             if (savedRoutesByTitle.containsKey(route.title)) {
-                userDao.unsaveRoute(owner, route.title)
+                userRepository.unsaveRoute(owner, uid, route.title)
             } else {
-                userDao.saveRoute(route.toEntity(owner))
+                userRepository.saveRoute(owner, uid, route.toEntity(owner))
             }
         }
     }
 
     // ---- private helpers ----
 
+    /** Wire up an authenticated session: mirror state, persist active email, start sync. */
+    private fun applyActiveSession(profile: UserData) {
+        userProfile = profile
+        registeredUser = profile
+        setActiveEmail(profile.email)
+        startObserving(profile.email)
+        profile.firebaseUid?.let { uid ->
+            userRepository.startListeners(viewModelScope, uid, profile.email)
+        }
+    }
+
     private fun setActiveEmail(email: String) {
         prefs.edit().putString(KEY_ACTIVE_EMAIL, email).apply()
     }
 
     private fun startObserving(email: String) {
-        viewModelScope.launch {
-            userDao.observeFollowing(email).collect { names ->
+        // Cancel any observers from a previous session before starting fresh,
+        // so we never end up with two collectors writing userProfile at once.
+        stopObserving()
+        observerJobs += viewModelScope.launch {
+            userRepository.observeFollowing(email).collect { names ->
                 followedPeople.clear()
                 names.forEach { followedPeople[it] = true }
             }
         }
-        viewModelScope.launch {
-            userDao.observeSavedRoutes(email).collect { rows ->
+        observerJobs += viewModelScope.launch {
+            userRepository.observeSavedRoutes(email).collect { rows ->
                 savedRoutesByTitle.clear()
                 rows.forEach { row -> row.toModel()?.let { savedRoutesByTitle[row.title] = it } }
             }
         }
-        viewModelScope.launch {
-            userDao.observeByEmail(email).collect { entity ->
-                if (entity != null) userProfile = entity.toModel()
+        observerJobs += viewModelScope.launch {
+            userRepository.observeProfile(email).collect { profile ->
+                if (profile != null) userProfile = profile
             }
         }
-        viewModelScope.launch {
-            userDao.observeAllExcept(email).collect { entities ->
-                otherUsers = entities.map { it.toModel() }
-            }
+        observerJobs += viewModelScope.launch {
+            userRepository.observeOtherUsers(email).collect { users -> otherUsers = users }
         }
+    }
+
+    private fun stopObserving() {
+        observerJobs.forEach { it.cancel() }
+        observerJobs.clear()
     }
 
     companion object {
@@ -262,37 +286,13 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as RunTrackApplication
-                UserViewModel(app)
+                UserViewModel(app, app.authRepository, app.userRepository)
             }
         }
     }
 }
 
-// ---- mappers (file-private, kept next to the VM that owns them) ----
-
-private fun UserData.toEntity() = UserEntity(
-    email = email,
-    runnerName = runnerName,
-    location = location,
-    fitnessLevel = fitnessLevel,
-    personalGoal = personalGoal,
-    bio = bio,
-    following = following,
-    followers = followers,
-    photoUri = photoUri
-)
-
-private fun UserEntity.toModel() = UserData(
-    runnerName = runnerName,
-    email = email,
-    location = location,
-    fitnessLevel = fitnessLevel,
-    personalGoal = personalGoal,
-    bio = bio,
-    following = following,
-    followers = followers,
-    photoUri = photoUri
-)
+// ---- mappers kept in the VM: RunRoute is a UI/model concern, not persistence ----
 
 private fun RunRoute.toEntity(ownerEmail: String) = SavedRouteEntity(
     ownerEmail = ownerEmail,
@@ -306,7 +306,7 @@ private fun RunRoute.toEntity(ownerEmail: String) = SavedRouteEntity(
 
 // Saved routes are matched back to the in-memory `routeList` so screens reuse
 // the same drawable + label formatting. If a stored route no longer matches
-// (e.g. resource id moved across rebuilds), it is filtered out by the caller.
+// (e.g. resource id moved across rebuilds), it is rebuilt from the stored fields.
 private fun SavedRouteEntity.toModel(): RunRoute? =
     routeList.firstOrNull { it.title == title }
         ?: RunRoute(title, distance, time, elevation, difficulty, imageRes)
