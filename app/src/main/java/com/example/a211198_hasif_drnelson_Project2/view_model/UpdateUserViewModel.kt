@@ -270,7 +270,7 @@ class UserViewModel(
             }
         }
         observerJobs += viewModelScope.launch {
-            userRepository.observeOtherUsers(email).collect { users -> otherUsers = users }
+            userRepository.observeOtherUsers(email, userProfile.firebaseUid).collect { users -> otherUsers = users }
         }
     }
 

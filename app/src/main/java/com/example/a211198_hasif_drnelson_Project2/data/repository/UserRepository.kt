@@ -2,13 +2,16 @@ package com.example.a211198_hasif_drnelson_Project2.data.repository
 
 import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.FOLLOWS
+import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.PUBLIC_PROFILES
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.SAVED_ROUTES
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.USERS
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FollowDoc
+import com.example.a211198_hasif_drnelson_Project2.data.cloud.PublicProfileDoc
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.SavedRouteDoc
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.UserDoc
 import com.example.a211198_hasif_drnelson_Project2.data.entities.FollowEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.SavedRouteEntity
+import com.example.a211198_hasif_drnelson_Project2.data.entities.UserDirectoryEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
 import com.example.a211198_hasif_drnelson_Project2.model.UserData
 import com.google.firebase.firestore.FirebaseFirestore
@@ -16,6 +19,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -52,8 +56,26 @@ class UserRepository(
     fun observeProfile(email: String): Flow<UserData?> =
         userDao.observeByEmail(email).map { it?.toModel() }
 
-    fun observeOtherUsers(email: String): Flow<List<UserData>> =
-        userDao.observeAllExcept(email).map { list -> list.map { it.toModel() } }
+    /**
+     * Everyone *other* than me, for Search. Merges two sources:
+     *  - the local `users` table (accounts that signed in on this device, incl.
+     *    the seeded demo runners), and
+     *  - the public directory mirrored from Firestore (accounts created on *other*
+     *    devices). Directory entries whose uid already exists as a local row are
+     *    dropped so a user who has signed in here isn't listed twice.
+     */
+    fun observeOtherUsers(email: String, myUid: String?): Flow<List<UserData>> =
+        combine(
+            userDao.observeAllExcept(email),
+            userDao.observeDirectoryExcept(myUid.orEmpty())
+        ) { locals, directory ->
+            val localUsers = locals.map { it.toModel() }
+            val localUids = localUsers.mapNotNull { it.firebaseUid }.toSet()
+            val directoryUsers = directory
+                .filter { it.uid !in localUids }
+                .map { it.toModel() }
+            (localUsers + directoryUsers).distinctBy { it.runnerName }
+        }
 
     fun observeFollowing(email: String): Flow<List<String>> =
         userDao.observeFollowing(email)
@@ -112,8 +134,10 @@ class UserRepository(
         }
 
         userDao.upsertUser(resolved.toEntity())
-        // Make sure the cloud has a doc the first time we ever see this account.
-        if (cloudSnap == null || !cloudSnap.exists()) pushProfile(resolved, create = true)
+        // Always (re)publish the profile on sign-in: creates the cloud doc the first
+        // time, and guarantees a publicProfiles directory entry exists for users who
+        // signed up before discovery shipped. Merge keeps it idempotent.
+        pushProfile(resolved, create = cloudSnap == null || !cloudSnap.exists())
         return resolved
     }
 
@@ -144,6 +168,25 @@ class UserRepository(
                     (cloudNames - localNames).forEach { userDao.addFollow(FollowEntity(email, it)) }
                     (localNames - cloudNames).forEach { userDao.removeFollow(email, it) }
                 }
+            }
+
+        // publicProfiles/* — the cross-device user directory. Mirror every other
+        // user into Room so Search can discover accounts created elsewhere.
+        listeners += firestore.collection(PUBLIC_PROFILES)
+            .addSnapshotListener { snap, _ ->
+                snap ?: return@addSnapshotListener
+                val entries = snap.documents.mapNotNull { it.toObject(PublicProfileDoc::class.java) }
+                    .filter { it.uid.isNotBlank() && it.uid != uid }
+                    .map {
+                        UserDirectoryEntity(
+                            uid = it.uid,
+                            runnerName = it.runnerName,
+                            location = it.location,
+                            fitnessLevel = it.fitnessLevel,
+                            photoUri = it.photoUri
+                        )
+                    }
+                if (entries.isNotEmpty()) scope.launch { userDao.upsertDirectoryUsers(entries) }
             }
     }
 
@@ -195,6 +238,20 @@ class UserRepository(
         if (create) fields["createdAt"] = System.currentTimeMillis()
         // merge so a profile edit never wipes createdAt or fields we didn't send.
         runCatching { ref.set(fields, SetOptions.merge()).await() }
+
+        // Mirror the public slice into the discovery directory so other devices
+        // can find + display this user without reading the owner-only profile doc.
+        runCatching {
+            firestore.collection(PUBLIC_PROFILES).document(uid).set(
+                PublicProfileDoc(
+                    uid = uid,
+                    runnerName = user.runnerName,
+                    location = user.location,
+                    fitnessLevel = user.fitnessLevel,
+                    photoUri = user.photoUri
+                )
+            ).await()
+        }
     }
 
     // ---- follows (write-through, with follower-count bookkeeping) ----
@@ -293,6 +350,16 @@ private fun UserEntity.toModel() = UserData(
     followers = followers,
     photoUri = photoUri,
     firebaseUid = firebaseUid
+)
+
+// Directory entries only carry public fields; private fields fall back to model
+// defaults and email is unknown (stays blank — Search uses runnerName/location).
+private fun UserDirectoryEntity.toModel() = UserData(
+    runnerName = runnerName,
+    location = location,
+    fitnessLevel = fitnessLevel,
+    photoUri = photoUri,
+    firebaseUid = uid
 )
 
 private fun UserDoc.toModel(uid: String) = UserData(

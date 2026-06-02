@@ -23,6 +23,21 @@ data class UserEntity(
     val firebaseUid: String? = null
 )
 
+// Public, cross-device directory of other users (mirror of Firestore
+// `publicProfiles/{uid}`). Keyed by Firebase uid (we never see other users'
+// emails — those stay private). Holds only the public fields needed to discover
+// + display someone in Search and on their profile. Populated by the
+// publicProfiles snapshot listener; `users` stays the private, email-keyed cache
+// of accounts that have actually signed in on THIS device.
+@Entity(tableName = "user_directory")
+data class UserDirectoryEntity(
+    @PrimaryKey val uid: String,
+    val runnerName: String,
+    val location: String,
+    val fitnessLevel: String,
+    val photoUri: String? = null
+)
+
 // A weekend route the user bookmarked. Composite key = ownerEmail+title.
 @Entity(tableName = "saved_routes", primaryKeys = ["ownerEmail", "title"])
 data class SavedRouteEntity(

@@ -222,6 +222,15 @@ conversations/{conversationId}/messages/{messageId} ← senderUid, text, timesta
 - `RunTrackApplication` exposes `galleryRepository` (lazy singleton).
 
 **All three 5.3 repositories are now code-complete and the app assembles.** Remaining for Phase 3: **5.5** (deploy security rules) and **5.6** (manual cross-install checkpoint testing).
+
+**5.3a Cross-device discovery — DONE ✅ (`assembleDebug` green; needs rules redeploy + on-device test):**
+Fixes "users created on one device don't appear in Search / Gallery on another." Root cause: `otherUsers` (Search) and the Gallery feed read **only local Room**, and owner-only `users/{uid}` rules forbid reading other accounts. Added public, any-authed-user-readable directories:
+- New Room table **`user_directory`** (`UserDirectoryEntity`, keyed by uid) — Room **v4 → v5** with additive `MIGRATION_4_5` (CREATE TABLE, data preserved). DAO gains directory upsert/observe/`findDirectoryByName`.
+- Firestore **`publicProfiles/{uid}`** (public slice: name, location, fitnessLevel, photoUri) — written by `UserRepository.pushProfile` (so every profile save) and on every sign-in (`onSignIn` now always republishes, idempotent merge). A `publicProfiles` listener mirrors all other users into `user_directory`. `observeOtherUsers(email, myUid)` merges local users + directory (deduped by uid/name) → Search shows everyone.
+- Firestore **`publicReels/{mediaId}`** — `GalleryRepository.createPost` writes a public copy alongside `users/{uid}/media`; `startFeedSync` folds *other* users' reels into Room (skipping my own; stored under synthetic `ownerEmail = "uid:<ownerUid>"` so they don't pollute my "my posts"). Wired into `GalleryViewModel.showFeed`.
+- `MessageRepository` uid resolution (`uidForName`) now falls back to the directory, so you can chat/group with users discovered via Search.
+- `firestore.rules`: `publicProfiles/{uid}` + `publicReels/{mediaId}` — read by any signed-in user, write only by the owner (`ownerUid`/uid == `auth.uid`). Private `users/{uid}` stays owner-only (5.6 #5 still holds).
+- **Requires:** redeploy `firestore.rules` (new collections will be denied otherwise), and each existing user must sign in once so their `publicProfiles` entry is created. Images still don't cross devices until Phase 5 (Storage); reels carry text/stats only.
 - **Not yet verified:** actual Firestore writes/reads on a device + Console (needs a network + Firebase Console check). For chat sync specifically, the real test is **two devices/emulators signed in as different real accounts** (demo runners can't sign in, so they don't sync).
 
 ### 5.4 Auth flow — **Email/Password (Option A)**
