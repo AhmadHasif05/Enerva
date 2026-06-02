@@ -59,6 +59,7 @@ class GalleryViewModel(
             seedIfNeeded(email, displayName)
             seedDemoAuthorsIfNeeded()
             repository.startMineSync(viewModelScope, email)
+            repository.startFeedSync(viewModelScope, email)
             observe(repository.observeFeed())
         }
     }

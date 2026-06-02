@@ -15,6 +15,7 @@ import com.example.a211198_hasif_drnelson_Project2.data.entities.FollowEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MessageEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.SavedRouteEntity
+import com.example.a211198_hasif_drnelson_Project2.data.entities.UserDirectoryEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
 
 @Database(
@@ -25,9 +26,10 @@ import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
         ActivityRecordEntity::class,
         ConversationEntity::class,
         MessageEntity::class,
-        MediaEntity::class
+        MediaEntity::class,
+        UserDirectoryEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -55,6 +57,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v4 → v5 (cross-device discovery): add the public user directory table,
+        // mirrored from Firestore `publicProfiles/{uid}`. Additive CREATE TABLE —
+        // existing data is preserved.
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS user_directory (" +
+                        "uid TEXT NOT NULL PRIMARY KEY, " +
+                        "runnerName TEXT NOT NULL, " +
+                        "location TEXT NOT NULL, " +
+                        "fitnessLevel TEXT NOT NULL, " +
+                        "photoUri TEXT)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -62,9 +80,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "runtrack.db"
                 )
-                    // Real 3→4 migration preserves data; destructive fallback only
+                    // Real migrations preserve data; destructive fallback only
                     // kicks in for version paths we haven't written a migration for.
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build().also { instance = it }
             }

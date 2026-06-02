@@ -167,7 +167,7 @@ class MessageRepository(
         val myName = userDao.findByEmail(ownerEmail)?.runnerName ?: ownerEmail.substringBefore('@')
         val names = linkedMapOf(myUid to myName)
         members.forEach { member ->
-            userDao.findByName(member)?.firebaseUid?.let { names[it] = member }
+            uidForName(member)?.let { names[it] = member }
         }
         runCatching {
             firestore.collection(CONVERSATIONS).document(cid).set(
@@ -276,11 +276,15 @@ class MessageRepository(
 
     // ---- helpers ----
 
+    /** A user's Firebase uid by display name — local account first, then the directory. */
+    private suspend fun uidForName(name: String): String? =
+        userDao.findByName(name)?.firebaseUid ?: userDao.findDirectoryByName(name)?.uid
+
     /** Deterministic id for a 1:1 (sorted uids); UUID for a group / unresolved peer. */
     private suspend fun resolveConversationId(ownerEmail: String, friendName: String, isGroup: Boolean): String {
         if (isGroup) return UUID.randomUUID().toString()
         val myUid = userDao.findByEmail(ownerEmail)?.firebaseUid
-        val friendUid = userDao.findByName(friendName)?.firebaseUid
+        val friendUid = uidForName(friendName)
         return if (myUid != null && friendUid != null) {
             listOf(myUid, friendUid).sorted().joinToString("_")
         } else {
@@ -304,11 +308,11 @@ class MessageRepository(
         val names = linkedMapOf(myUid to myName)
         return if (isGroup) {
             membersCsv.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { member ->
-                userDao.findByName(member)?.firebaseUid?.let { names[it] = member }
+                uidForName(member)?.let { names[it] = member }
             }
             Pair(names.keys.toList(), names)
         } else {
-            val friendUid = userDao.findByName(friendName)?.firebaseUid ?: return null
+            val friendUid = uidForName(friendName) ?: return null
             names[friendUid] = friendName
             Pair(listOf(myUid, friendUid).sorted(), names)
         }

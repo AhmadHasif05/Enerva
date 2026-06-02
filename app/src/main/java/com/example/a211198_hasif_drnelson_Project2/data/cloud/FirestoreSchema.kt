@@ -21,6 +21,12 @@ object FirestoreCollections {
     // Top-level, shared between participants
     const val CONVERSATIONS = "conversations"
     const val MESSAGES = "messages"
+
+    // Top-level, readable by any signed-in user (cross-device discovery):
+    //  - publicProfiles/{uid} → the public slice of a user's profile (directory)
+    //  - publicReels/{mediaId} → reels surfaced in the cross-user Gallery feed
+    const val PUBLIC_PROFILES = "publicProfiles"
+    const val PUBLIC_REELS = "publicReels"
 }
 
 /** users/{uid} */
@@ -99,4 +105,28 @@ data class MessageDoc(
     val senderUid: String = "",
     val text: String = "",
     val timestampMs: Long = 0L
+)
+
+/** publicProfiles/{uid} — public slice of a profile, readable by any signed-in user. */
+data class PublicProfileDoc(
+    val uid: String = "",
+    val runnerName: String = "",
+    val location: String = "",
+    val fitnessLevel: String = "",
+    val photoUri: String? = null
+)
+
+/** publicReels/{mediaId} — a reel surfaced in the cross-user Gallery feed. */
+data class PublicReelDoc(
+    val id: String = "",
+    val ownerUid: String = "",
+    val author: String = "",
+    val caption: String = "",
+    val activity: String = "",
+    val distanceKm: String = "",
+    val tint: Long = 0L,
+    val imageRes: Int = 0,
+    val imageUri: String? = null,
+    val likes: Int = 0,
+    val createdAtMs: Long = 0L
 )

@@ -2,8 +2,10 @@ package com.example.a211198_hasif_drnelson_Project2.data.repository
 
 import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.MEDIA
+import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.PUBLIC_REELS
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.USERS
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.MediaDoc
+import com.example.a211198_hasif_drnelson_Project2.data.cloud.PublicReelDoc
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -37,6 +39,7 @@ class GalleryRepository(
     private val userDao = db.userDao()
 
     private var mediaListener: ListenerRegistration? = null
+    private var feedListener: ListenerRegistration? = null
 
     // ---- reads (Room is the source of truth) ----
 
@@ -87,8 +90,12 @@ class GalleryRepository(
 
         user?.firebaseUid?.let { uid ->
             runCatching {
+                // Private copy under the owner.
                 firestore.collection(USERS).document(uid).collection(MEDIA).document(id)
                     .set(entity.toDoc()).await()
+                // Public copy for the cross-user Gallery feed.
+                firestore.collection(PUBLIC_REELS).document(id)
+                    .set(entity.toPublicReel(uid)).await()
             }
         }
     }
@@ -113,9 +120,34 @@ class GalleryRepository(
         }
     }
 
+    /**
+     * Listen to the public reels feed and fold *other users'* reels into Room so
+     * the cross-user Gallery shows posts created on other devices. My own reels are
+     * skipped here — they already arrive via [startMineSync] under my real email.
+     */
+    fun startFeedSync(scope: CoroutineScope, email: String) {
+        feedListener?.remove()
+        scope.launch {
+            val myUid = userDao.findByEmail(email)?.firebaseUid
+            feedListener = firestore.collection(PUBLIC_REELS)
+                .addSnapshotListener { snap, _ ->
+                    snap ?: return@addSnapshotListener
+                    scope.launch {
+                        for (doc in snap.documents) {
+                            val r = doc.toObject(PublicReelDoc::class.java) ?: continue
+                            if (r.ownerUid.isBlank() || r.ownerUid == myUid) continue
+                            activityDao.insertMedia(r.toEntity())
+                        }
+                    }
+                }
+        }
+    }
+
     fun stopSync() {
         mediaListener?.remove()
         mediaListener = null
+        feedListener?.remove()
+        feedListener = null
     }
 }
 
@@ -123,6 +155,36 @@ class GalleryRepository(
 
 private fun MediaEntity.toDoc() = MediaDoc(
     id = id,
+    author = author,
+    caption = caption,
+    activity = activity,
+    distanceKm = distanceKm,
+    tint = tint,
+    imageRes = imageRes,
+    imageUri = imageUri,
+    likes = likes,
+    createdAtMs = createdAtMs
+)
+
+private fun MediaEntity.toPublicReel(ownerUid: String) = PublicReelDoc(
+    id = id,
+    ownerUid = ownerUid,
+    author = author,
+    caption = caption,
+    activity = activity,
+    distanceKm = distanceKm,
+    tint = tint,
+    imageRes = imageRes,
+    imageUri = imageUri,
+    likes = likes,
+    createdAtMs = createdAtMs
+)
+
+// Remote reels are stored under a synthetic ownerEmail ("uid:<ownerUid>") so they
+// never collide with my own email-keyed posts or leak into my "my posts" view.
+private fun PublicReelDoc.toEntity() = MediaEntity(
+    id = id,
+    ownerEmail = "uid:$ownerUid",
     author = author,
     caption = caption,
     activity = activity,

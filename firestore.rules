@@ -22,6 +22,24 @@ service cloud.firestore {
       }
     }
 
+    // ---- publicProfiles/{uid} — discovery directory ----
+    // Any signed-in user can read (so Search finds people); only the owner writes
+    // their own entry. Holds public fields only (name, photo, location, level).
+    match /publicProfiles/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---- publicReels/{mediaId} — cross-user Gallery feed ----
+    // Any signed-in user can read; a reel can only be created/edited by its owner.
+    match /publicReels/{mediaId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+                            && request.resource.data.ownerUid == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.ownerUid == request.auth.uid;
+    }
+
     // ---- conversations/{id} — participants only ----
     match /conversations/{conversationId} {
       allow read: if request.auth != null
