@@ -331,7 +331,7 @@ Each phase ends **buildable**. Phases 4 & 5 need credentials (Maps API key).
 | 1 | Trim & restructure to 10 screens | ✅ Done |
 | 2 | Room (local persistence) | ✅ Done |
 | 3 | Firebase Auth + Cloud Firestore | ✅ Code-complete (rules deploy + on-device checkpoint pending) |
-| 4 | Google Maps API (real map) | 🔜 Next |
+| 4 | Google Maps API (real map) | 🚧 In progress — spec + implementation plan written (see below); coding not started |
 | 5 | Camera in Record screen | 🔜 Upcoming |
 
 ### Phase 3 sub-tracker (Firebase)
@@ -357,6 +357,12 @@ Each phase ends **buildable**. Phases 4 & 5 need credentials (Maps API key).
 > - **Image limitation:** `imageRes` (drawable id) and `imageUri` (`content://`) are device-local — synced reels carry text/stats across devices but **not the picture** until Phase 5 adds Firebase Storage.
 
 ### Phase 4 — Google Maps (real map in Record)
+
+> **Status: 🚧 in progress.** Brainstormed design and a task-by-task implementation plan are written and committed (coding not yet started):
+> - Spec: [`docs/superpowers/specs/2026-06-09-phase4-google-maps-design.md`](docs/superpowers/specs/2026-06-09-phase4-google-maps-design.md)
+> - Plan: [`docs/superpowers/plans/2026-06-09-phase4-google-maps.md`](docs/superpowers/plans/2026-06-09-phase4-google-maps.md)
+> - Key decisions locked: reuse the `local.properties` → manifest-placeholder pattern for `MAPS_API_KEY` (no secrets plugin); wire only the 3 map buttons; **remove** the inert search/filter bar.
+
 1. Add `maps-compose` + `play-services-maps`.
 2. Maps API key via `local.properties` / secrets plugin (**never commit the key**).
 3. Replace the `Canvas` breadcrumb backdrop with a `GoogleMap` composable.
