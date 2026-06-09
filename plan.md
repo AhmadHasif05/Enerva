@@ -1,408 +1,429 @@
-# RunTrack — Update Plan
+# Enerva — Master Design & Architecture Document
 
-Goal: slim the app to **exactly 10 screens**, then layer in **Room (local DB)**, **Cloud Firestore + Firebase Auth (cloud)**, **Google Maps API**, and **camera capture in the Record screen**.
+> **Enerva** is an Android app for *social cardio* — track your runs, walks, and rides; capture them as reels; discover and follow other runners; chat; and keep each other moving. Inspired by Strava, built as a modern Android engineering showcase.
+
+- **Platform:** Android (min SDK 24, target SDK 36)
+- **Language:** Kotlin
+- **UI:** Jetpack Compose + Material 3 (single-Activity)
+- **Architecture:** MVVM + an **offline-first Repository layer**
+- **Persistence:** Room (local, source of truth for reads) + Cloud Firestore (cloud, write-through + real-time sync)
+- **Auth:** Firebase Auth — email/password + Google Sign-In (Credential Manager)
+- **Package:** `com.example.a211198_hasif_drnelson_Project2`
 
 ---
 
-## Current Phase
+## Table of Contents
 
-> **Phase 3 — Firebase Auth + Cloud Firestore** (in progress)
+1. [Concept & Problem](#1-concept--problem)
+2. [Tech Stack](#2-tech-stack)
+3. [Architecture](#3-architecture)
+4. [Project Structure](#4-project-structure)
+5. [Data Model](#5-data-model)
+6. [Screen Map & Navigation](#6-screen-map--navigation)
+7. [Security Model](#7-security-model)
+8. [Roadmap & Phase History](#8-roadmap--phase-history)
+9. [Code-Quality & Refactor Backlog](#9-code-quality--refactor-backlog)
+10. [UX Improvements](#10-ux-improvements)
+
+---
+
+## 1. Concept & Problem
+
+### The problem
+People want stronger health and a fitter body, and they turn to cardio — jogging, running, brisk walking — to get there. But the journey usually ends too soon: **motivation fades, routines break, routes feel uncertain, progress is hard to measure, and going it alone makes cardio a struggle instead of a habit.** When people give up, they lose the chance to build lasting fitness and the quality of life that comes with it.
+
+### The idea
+Enerva attacks the *motivation* problem with three levers:
+
+| Lever | How Enerva delivers it |
+|-------|------------------------|
+| **Measure progress** | GPS-tracked activities with live distance / pace / time, saved to a personal history. |
+| **Make it social** | Follow other runners, see their reels, message them, form group chats — accountability through community. |
+| **Make it shareable** | Every run can become a **reel** (an Instagram-style post) on your gallery, so progress is something you show, not just log. |
+
+### Target user
+A casual-to-intermediate runner who wants Strava-style tracking **plus** a lighter, more social, reel-first feed — and who values that the app keeps working offline and syncs when back online.
+
+### Feature at a glance
+- 📍 **Record** — real-time GPS activity tracking (run / walk / ride).
+- 🎞️ **Gallery (Reels)** — per-user feed of captured activities; view your own and others'.
+- 👥 **Social** — search, follow, profile pages, cross-device discovery.
+- 💬 **Messaging** — 1:1 and group chat, synced across devices.
+- 🗺️ **Routes** — browse and bookmark suggested weekend routes.
+- 🔐 **Accounts** — email/password + Google sign-in, password reset.
+
+---
+
+## 2. Tech Stack
+
+| Concern | Library | Why it's here |
+|---------|---------|---------------|
+| UI toolkit | Jetpack Compose + Material 3 | Declarative, modern, less boilerplate than XML; Material 3 theming. |
+| Navigation | Navigation-Compose | Single-Activity navigation graph with typed routes + transitions. |
+| Local DB | Room (KSP) | Typed, queryable offline cache; `Flow` queries drive reactive UI. |
+| Cloud DB | Cloud Firestore | Real-time, offline-capable document store for cross-device sync. |
+| Auth | Firebase Auth + Credential Manager + Google ID | Per-user accounts, password reset, Google Sign-In (current recommended API). |
+| Async | Coroutines + Flow | Structured concurrency; `Flow` bridges Room/Firestore → Compose state. |
+| Images | Coil (`AsyncImage`) | Lightweight Compose-native image loading (drawables + `content://` URIs). |
+| Location | Play Services Location (`FusedLocationProviderClient`) | Battery-efficient GPS for activity tracking. |
+| Camera | CameraX | Activity media capture (wired in Phase 5). |
+| Networking | Retrofit + Moshi + OkHttp | Present for future REST integrations (e.g. Maps/places). |
+| Prefs | DataStore (Preferences) | One-time flags (e.g. demo-seed gate) and lightweight session prefs. |
+| Permissions | Accompanist Permissions | Compose-friendly runtime permission flow. |
+
+> **Note:** Retrofit/Moshi/OkHttp are wired but not yet exercised by a live API — reserved for Maps/places work in Phase 4.
+
+---
+
+## 3. Architecture
+
+Enerva is **MVVM with an offline-first Repository layer**. The defining choice: **Room is the read source of truth; Firestore is a write-through target and a push source.** The UI never waits on the network to render — it reads local data instantly, and cloud changes flow back in through listeners.
+
+### 3.1 Layered overview
+
+```mermaid
+flowchart TD
+    UI["Compose UI<br/>(screens + components)"]
+    VM["ViewModels<br/>(expose state, no DAO refs)"]
+    REPO["Repositories<br/>Auth · User · Message · Gallery"]
+    ROOM[("Room<br/>local cache — READ source of truth")]
+    FS[("Firebase<br/>Auth + Cloud Firestore")]
+
+    UI -->|observes state| VM
+    VM -->|delegates persistence| REPO
+    REPO -->|read via Flow| ROOM
+    REPO -->|write-through| ROOM
+    REPO -->|write-through| FS
+    FS -.->|real-time listeners fold changes back| ROOM
+    ROOM -.->|Flow emits| VM
+    VM -.->|recompose| UI
+```
+
+**Layer responsibilities**
+
+| Layer | Owns | Does NOT |
+|-------|------|----------|
+| **UI (Compose)** | Rendering, user input, navigation calls. | Touch Room/Firestore directly. |
+| **ViewModel** | Holding observable UI state, exposing intent methods. After the Phase-3 refactor, ViewModels hold **no DAO references** — they delegate to repositories. | Make persistence decisions. |
+| **Repository** | The single owner of a domain (profile, messages, reels): decides read-from-Room, write-to-both, run listeners, reconcile cloud ↔ local. | Hold UI state. |
+| **Room** | Local cache + offline reads via `Flow`. | Be the cloud truth. |
+| **Firebase** | Identity (Auth) and the cross-device truth (Firestore). | Block the UI. |
+
+### 3.2 Why offline-first
+
+- **Instant UI** — reads hit Room, never the network, so there's no spinner on every screen.
+- **Works offline** — writes land in Room immediately; Firestore's SDK queues them and replays on reconnect.
+- **Self-healing sync** — snapshot listeners fold remote changes into Room, and because Room exposes `Flow`, the UI auto-refreshes with no manual wiring.
+- **Idempotent echoes** — a record is written to Room and Firestore under the **same id**, so when the listener echoes the change back it's a no-op rather than a duplicate.
+
+### 3.3 Data-flow walkthrough — "send a chat message"
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant VM as MessageViewModel
+    participant R as MessageRepository
+    participant Room as Room (local)
+    participant FS as Firestore
+    participant P as Peer device
+
+    U->>VM: tap Send
+    VM->>R: sendMessage(text)
+    R->>Room: upsert MessageEntity (id = X)
+    Room-->>VM: Flow emits → message shows instantly
+    R->>FS: write messages/X (same id)
+    FS-->>R: listener echo (id = X) → idempotent upsert
+    FS-->>P: peer's listener fires → message appears on their device
+```
+
+The same pattern repeats for profile edits (`users/{uid}` + `publicProfiles/{uid}`) and reels (`users/{uid}/media` + `publicReels/{mediaId}`).
+
+### 3.4 Identity & session
+
+- Auth state lives in `FirebaseAuth.currentUser` (replaces the old `activeEmail` preference).
+- On app start, `MainActivity` picks the start route: **Home** if a Firebase user exists, else **Login**.
+- On sign-in, the repository **backfills `firebaseUid`** onto the local user row and starts listeners; on logout it tears them down and clears active-user state in the ViewModels.
+- **Key bridge:** Room keeps `email` as its primary key (the offline cache and every query is email-keyed), while Firestore keys on the immutable Firebase `uid`. The indexed `firebaseUid` column maps each local row to its cloud doc.
+
+### 3.5 Cross-device discovery
+
+Owner-only security rules mean a user can't read another user's private `users/{uid}` subtree. To still let people **discover** each other, Enerva mirrors a *public slice* into two top-level collections any signed-in user can read:
+
+- `publicProfiles/{uid}` → name, location, fitness level, photo → mirrored into the local `user_directory` table → powers **Search**.
+- `publicReels/{mediaId}` → the public copy of a reel → folded into Room → powers the cross-user **Gallery feed**.
+
+Private data (`users/{uid}`, conversations) stays locked to its owner/participants.
+
+---
+
+## 4. Project Structure
+
+```
+com.example.a211198_hasif_drnelson_Project2
+│
+├── RunTrackApplication.kt        # App entry: inits Firebase + Room, owns repo singletons
+│
+├── model/                        # Plain UI/domain models (not Room entities)
+│   ├── UserData.kt               #   profile model the ViewModel exposes
+│   ├── GalleryActivity.kt        #   a reel as the UI sees it
+│   ├── RunRoute.kt               #   suggested weekend route
+│   ├── ActivityRecord.kt         #   completed activity (UI model)
+│   ├── Message.kt                #   chat message (UI model)
+│   └── (legacy: Club, Challenges, Friends, Notifications, Workout — see §9)
+│
+├── data/                         # Persistence layer
+│   ├── AppDatabase.kt            #   Room DB (v5) + migrations + singleton
+│   ├── entities/Entities.kt      #   @Entity definitions (8 tables)
+│   ├── dao/                      #   UserDao, MessageDao, ActivityDao (Flow + suspend)
+│   ├── cloud/FirestoreSchema.kt  #   collection-name constants + Firestore DTOs
+│   └── repository/               #   domain owners (the heart of the data layer)
+│       ├── AuthRepository.kt     #     Firebase Auth wrapper
+│       ├── GoogleSignInHelper.kt #     Credential Manager → Google ID token
+│       ├── UserRepository.kt     #     profile, follows, saved routes, directory
+│       ├── MessageRepository.kt  #     conversations + messages
+│       └── GalleryRepository.kt  #     reels (own + public feed)
+│
+├── view_model/                   # MVVM ViewModels
+│   ├── UserViewModel             #   profile/session/follows  (file to rename — §9)
+│   ├── MessageViewModel.kt       #   chat + groups
+│   ├── GalleryViewModel.kt       #   reels (feed / mine / by-author)
+│   ├── RecordViewModel.kt        #   GPS tracking state machine
+│   ├── LoginViewModel            #   login form state  (file to rename — §9)
+│   └── SignupViewModel           #   signup form state (file to rename — §9)
+│
+├── view/                         # UI layer
+│   ├── MainActivity.kt           #   single Activity, hosts Scaffold + NavHost + Record FAB
+│   ├── Navigation.kt             #   Screen sealed class, route builders, bottom-nav list
+│   ├── components/HomeTopBar.kt  #   shared composables
+│   └── screen/                   #   one file per screen (Login, Signup, Home, Profile,
+│                                 #     EditProfile, Record, Gallery, Search, Message, Chat)
+│
+└── ui/theme/                     # Color.kt, Theme.kt, Type.kt (Material 3 theme)
+```
+
+**Boundary rule:** dependencies point downward only — `view` → `view_model` → `data/repository` → `data/{dao,cloud}`. The UI never imports a DAO; a ViewModel never imports Firestore directly.
+
+---
+
+## 5. Data Model
+
+### 5.1 Room entities (local, `runtrack.db`, v5)
+
+| Entity | Key | Purpose |
+|--------|-----|---------|
+| `UserEntity` | `email` (PK), `firebaseUid` (indexed) | The signed-in account on this device (private cache). |
+| `UserDirectoryEntity` | `uid` | Public mirror of *other* users (from `publicProfiles`) for Search. |
+| `SavedRouteEntity` | `ownerEmail`+`title` | Bookmarked weekend routes. |
+| `FollowEntity` | `ownerEmail`+`friendName` | Who the user follows. |
+| `ActivityRecordEntity` | `id` (UUID) | A completed run/walk/ride. |
+| `ConversationEntity` | `ownerEmail`+`friendName` | A 1:1 or group conversation; `conversationId` links to the shared cloud doc. |
+| `MessageEntity` | `id` | One chat message; `conversationId` mirrors the parent. |
+| `MediaEntity` | `id` | One gallery reel (own post or seeded demo). |
+
+### 5.2 Firestore schema (cloud)
+
+```
+users/{uid}                              ← private, owner-only
+   ├─ email, runnerName, location, fitnessLevel, personalGoal, bio
+   ├─ following (int), followers (int), photoUri (string?), createdAt
+   ├─ follows/{friendKey}        ← friendName, friendUid, createdAt
+   ├─ savedRoutes/{title}        ← distance, time, elevation, difficulty, imageRes
+   ├─ activities/{activityId}    ← type, title, date, distanceKm, durationMinutes, …
+   └─ media/{mediaId}            ← caption, activity, distanceKm, tint, imageRes, likes, …
+
+conversations/{conversationId}           ← shared between participants
+   ├─ participants: [uid…], participantNames: {uid→name}
+   ├─ isGroup, groupName, lastMessageAt
+   └─ messages/{messageId}       ← senderUid, text, timestampMs
+
+publicProfiles/{uid}                     ← public: any signed-in user may read
+   └─ runnerName, location, fitnessLevel, photoUri
+
+publicReels/{mediaId}                    ← public: any signed-in user may read
+   └─ ownerUid, author, caption, activity, distanceKm, tint, imageRes, likes, …
+```
+
+### 5.3 The email ↔ uid bridge
+
+| | Room | Firestore |
+|--|------|-----------|
+| **Primary key** | `email` | Firebase `uid` |
+| **Why** | Emails are how the local cache + every DAO query was originally written. | uids are immutable and required by security rules. |
+| **Link** | `UserEntity.firebaseUid` (indexed), backfilled on first cloud sign-in. | — |
+
+**Conversation id derivation:** a 1:1 `conversationId` is derived deterministically from the two **sorted uids**, so both devices compute the same id with no lookup. Group chats use a generated UUID stored on the local row.
+
+### 5.4 Migrations (data-preserving)
+
+- **v3 → v4** (`MIGRATION_3_4`): additive nullable `ADD COLUMN`s — `users.firebaseUid` (+ index), `conversations.conversationId`, `messages.conversationId`.
+- **v4 → v5** (`MIGRATION_4_5`): additive `CREATE TABLE user_directory`.
+- A `fallbackToDestructiveMigration` exists only for version paths without a written migration (dev safety net).
+
+---
+
+## 6. Screen Map & Navigation
+
+Single-Activity, 10 screens, **5 bottom-nav tabs**. The Record tab is presented as a large central FAB straddling the nav bar.
+
+```mermaid
+flowchart LR
+    Login --> Signup
+    Login --> Home
+    Signup --> Login
+    subgraph Tabs["Bottom nav"]
+        Home
+        Search
+        Record
+        Gallery
+        Profile
+    end
+    Search --> Chat
+    Search --> UserGallery["Gallery (other user)"]
+    Profile --> EditProfile
+    Profile --> Messages
+    Profile --> Logout((Log out)) --> Login
+    Messages --> Chat
+    Gallery --> Chat
+```
+
+| # | Screen | Role |
+|---|--------|------|
+| 1 | **Login** | Launch screen; email/password, Google, forgot-password. |
+| 2 | **Signup** | Create account → bounce back to Login. |
+| 3 | **Home** | Dashboard: your progress reels + suggested weekend routes. |
+| 4 | **Profile** | Stats, gallery grid, follows, log out. |
+| 5 | **Messages** | Inbox + group creation. |
+| 6 | **Edit Profile** | Update name, photo, bio, goals. |
+| 7 | **Record** | GPS tracking + route search/filters (merged Record+Maps). |
+| 8 | **Gallery** | Reels feed (own + others'); per-user galleries. |
+| 9 | **Search** | Discover users to follow / message. |
+| 10 | **Chat** | 1:1 / group conversation. |
+
+> **Design decisions (locked):** launch on Login (no Welcome screen); Settings deleted → only Log out survives (in Profile); Groups deleted → group chat lives in Messages; Activity history deleted → shown as reels in Gallery; Record + Maps merged into one screen.
+
+---
+
+## 7. Security Model
+
+Firestore rules (`firestore.rules`, rules_version 2):
+
+| Path | Read | Write |
+|------|------|-------|
+| `users/{uid}/**` | owner only (`auth.uid == uid`) | owner only |
+| `conversations/{id}` | participants only (`auth.uid in participants`) | participant; `create` validates the creator is in `participants` |
+| `conversations/{id}/messages/{mid}` | participants (via parent `get()`) | `create` requires `senderUid == auth.uid`; update/delete denied (messages immutable) |
+| `publicProfiles/{uid}` | any signed-in user | owner only |
+| `publicReels/{mediaId}` | any signed-in user | owner only (`ownerUid == auth.uid`) |
+
+**Profiles stay private *and* chat labels resolve** because participant display names are denormalised onto the conversation doc (`participantNames: uid→name`), so a chat doesn't need to read the other user's private profile.
+
+> **Status:** rules written; **deploy pending** (`firebase deploy --only firestore:rules` or paste into Console). New public collections are denied until redeployed.
+
+---
+
+## 8. Roadmap & Phase History
+
+Each phase ends **buildable**. Phases 4 & 5 need credentials (Maps API key).
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| 0 | Package rename | ✅ Done |
+| 0 | Package rename (`Project1` → `Project2`) | ✅ Done |
 | 1 | Trim & restructure to 10 screens | ✅ Done |
 | 2 | Room (local persistence) | ✅ Done |
-| **3** | **Firebase Auth + Cloud Firestore** | **⏳ In Progress — see sub-phase tracker in §5** |
+| 3 | Firebase Auth + Cloud Firestore | ✅ Code-complete (rules deploy + on-device checkpoint pending) |
 | 4 | Google Maps API (real map) | 🔜 Next |
 | 5 | Camera in Record screen | 🔜 Upcoming |
 
----
-
-## Decisions (locked)
-
-- **Launch screen:** app opens directly on **Login** (Welcome removed).
-- **Settings:** deleted as a screen — only the **Log out** action survives, moved into **Profile**.
-- **Groups:** deleted as a screen — group features move into **Message** (create groups from your friends).
-- **Activity:** deleted as a screen — activity history is shown as **reels in Gallery**.
-- **Record + Maps:** **one combined screen** (map fills screen, recording stats/controls overlay).
-- **Gallery (reels):** per-user reels, like a profile feed. You see **your own** gallery and can view **friends'** galleries (different people → different reels).
-- **Auth (Phase 3):** **Firebase Auth** (real per-user accounts + security rules).
-
----
-
-## 0. Package rename — DONE ✅
-
-Code package `...drnelson_Project1` renamed to `...drnelson_Project2` to match the app namespace/applicationId. All 40 source files + 3 source-set directories (main/test/androidTest) updated. No code errors.
-
----
-
-## 1. Current State (as-is)
-
-- **Architecture:** Jetpack Compose + MVVM, single-Activity (`MainActivity`), navigation in `view/Navigation.kt` + `MainActivity.kt`.
-- **Persistence:** None. All state in-memory in ViewModels (`mutableStateOf`). Lost on restart.
-- **Room:** Gradle deps present, but **no `@Entity`/`@Dao`/`@Database`** yet. Unused.
-- **Firestore / Firebase:** Not present in code or Gradle.
-- **Maps:** Fake — hand-drawn `Canvas` trails. Real GPS works via `FusedLocationProviderClient`.
-- **Camera:** CameraX deps present, **not used**.
-
----
-
-## 2. Target — 10 Screens
-
-| # | Screen | Source | Action |
-|---|--------|--------|--------|
-| 1 | Login | `LoginScreen.kt` | Keep (now the launch screen) |
-| 2 | Sign Up | `SignupScreen.kt` | Keep |
-| 3 | Home | `HomeScreen.kt` | Keep |
-| 4 | Profile | `ProfileScreen.kt` | Keep + add Log out, link to Gallery |
-| 5 | Message | `MessageScreen.kt` | Keep + group creation from friends |
-| 6 | Edit Profile | `EditProfile.kt` | Keep |
-| 7 | Record + Maps | merge `RecordScreen.kt` + `MapsScreen.kt` | **Merge into one** |
-| 8 | Gallery (reels) | new `GalleryScreen.kt` | **Create** (own + friends' reels) |
-| 9 | Search | `SearchScreen.kt` | Keep |
-| 10 | Chat | `ChatScreen.kt` | Keep |
-
-### Screens to DELETE
-Welcome (`MainScreen.kt`), Groups (`GroupsScreen.kt`), You (`YouScreen.kt`), Settings (`SettingScreen.kt`), Notifications (`NotifyScreen.kt`), Activity (`ActivityScreen.kt`).
-
-### Bottom navigation (5 tabs)
-Home · Search · Record+Maps · Gallery · Profile
-
----
-
-## 3. Phase 1 — Trim & restructure to 10 screens — DONE ✅
-
-Pure UI/navigation restructure — no new tech yet. **Compiles clean (`BUILD SUCCESSFUL`).**
-
-1. `Navigation.kt`: trim `Screen` sealed class (remove Welcome/Groups/You/Settings/Notifications/Activity/Maps), add `Gallery`; set `bottomNavItems` to the 5 tabs.
-2. `MainActivity.kt`: `startDestination = Login`; auth routes = Login + Signup; remove deleted composables; add Gallery; Record route = combined screen.
-3. `ProfileScreen.kt`: replace Settings icon with **Log out** (→ Login, clear back stack); point Activities → Gallery.
-4. `HomeTopBar.kt`: remove the Notifications button.
-5. `HomeScreen.kt`: "see all" → Gallery instead of Activity.
-6. `MessageScreen.kt`: replace Settings icon with **New Group** entry (friends-based; full feature later).
-7. Create `GalleryScreen.kt`: vertical reels pager (own + friends' reels; sample data for now).
-8. Merge `MapsScreen` UI into `RecordScreen` (map search/filters overlay + recording controls); delete `MapsScreen.kt`.
-9. Delete the 6 screen files + `ChallengeViewModel` (only used by Groups).
-10. Build & run. **Checkpoint: app launches on Login, all 10 screens reachable, compiles.**
-
----
-
-## 4. Phase 2 — Room (local persistence) — DONE ✅
-
-1. Entities: `UserEntity`, `ActivityRecordEntity` (saved run → also a reel), `MessageEntity`, `ConversationEntity`, `FollowEntity`, `SavedRouteEntity`, `MediaEntity` (reel item).
-2. DAOs with suspend / `Flow` queries (`UserDao`, `MessageDao`, `ActivityDao`).
-3. `AppDatabase : RoomDatabase` (version 3) + singleton in `RunTrackApplication`; `fallbackToDestructiveMigration` for dev.
-4. ViewModels refactored to read/write via DAOs: `UpdateUserViewModel`, `MessageViewModel`, `RecordViewModel`, **new** `GalleryViewModel`.
-5. Persists: login session (active email in prefs), profile (incl. **photoUri** picked via `PickVisualMedia`), follows, saved routes, conversations + messages, gallery media (own + demo cross-user posts).
-6. **Checkpoint: data survives restart. ✅**
-
-### 4a. Phase 2 polish — DONE ✅
-
-Done in the same Room pass:
-
-- **Gallery scoping:** `GalleryViewModel` exposes three modes — `showFeed` (cross-user, bottom-nav Gallery), `showMyPosts` (Profile + Home "Your Progress"), `showAuthorGallery(name)` (visiting another user). Each screen scopes its own VM via `NavBackStackEntry` so modes don't clobber each other.
-- **Home "Your Progress"** now reads from Room filtered to the active user (replaced the static `sampleGalleryActivities` mix).
-- **Cross-user demo seed:** `seedDemoAuthorsIfNeeded()` one-time-seeds 6 reels from Sarah/Daniel/Aisha so the Gallery feed shows variety pre-signups (gated by `galleryDemoSeeded` pref).
-- **Profile photo:** added `photoUri` to `UserEntity`/`UserData` + `updatePhotoUri(...)` in VM; EditProfile wires `PickVisualMedia` + `takePersistableUriPermission`; ProfileScreen + EditProfile avatars render the picked photo.
-- **Profile grid → own gallery:** tapping a tile now navigates to `userGalleryRoute(item.author)` instead of the all-users feed, keeping Profile→reels filtered to that user.
-- **Record FAB:** moved from per-screen `BottomEnd` to a global overlay in `MainActivity` aligned `BottomCenter`, sized 80dp with `RadioButtonChecked` icon, straddling the top edge of the nav bar over the Record tab. Shown on all bottom-nav screens.
-
----
-
-## 5. Phase 3 — Firebase Auth + Cloud Firestore
-
-**Status: design approved, implementation in progress.** See `setupfirebase.md` for the one-time Firebase console setup (done ✅) and `docs/superpowers/specs/2026-05-30-phase3-firebase-design.md` for the locked spec.
-
-### Sub-phase tracker
-
-| # | Sub-phase | Status | Testable by |
-|---|---|---|---|
-| 5.0 | Firebase console setup (project, app, JSON, Auth, Firestore) | ✅ Done | `app/google-services.json` exists; Auth + Firestore enabled in console |
-| 5.1 | Gradle wiring (BoM, plugin, deps) | ✅ Done | `BUILD SUCCESSFUL` with `processDebugGoogleServices` green |
-| 5.4 | **Auth (email/password)** — Firebase init, `AuthRepository`, password fields, MainActivity start route | ✅ Done | Sign up in app → user appears in Firebase Console → Authentication → Users |
-| 5.4a | **Signup → Login redirect** — sign out after signup so user logs in explicitly | ✅ Done | Sign up → toast "Account created. Please log in." → lands on Login (not Home) |
-| 5.4c | **Forgot password** — "Forgot password?" link on Login → email reset flow via `sendPasswordResetEmail` | ✅ Done | Tap link → enter email → Firebase sends reset email → user resets via link → can log in with new password |
-| 5.4b | **Google Sign-In** — Credential Manager + Web client ID + real Firebase Auth credential | ✅ Done & verified on-device (lands on Home, profile seeded from Google name/photo) | "Continue with Google" picks an account → lands on Home → user appears in Firebase Console |
-| 5.2 | Schema migrations (Room v4 + `firebaseUid` + shared `conversationId`) | ✅ Done — `BUILD SUCCESSFUL`; additive `MIGRATION_3_4` (nullable `ADD COLUMN`s) preserves all rows | Existing data preserved on upgrade |
-| 5.3 | Repositories + Firestore listeners (`UserRepository`, `MessageRepository`, `GalleryRepository`) | ✅ Code-complete — all 3 repos built, `assembleDebug` green. ⏳ on-device Firestore sync not yet manually verified | Profile edits + chats + gallery posts appear in Firestore Console |
-| 5.5 | Security rules deploy | ✅ Rules written (`firestore.rules` + `firebase.json` + `.firebaserc`); ⏳ **deploy pending** (run `firebase deploy --only firestore:rules` or paste in Console) | Rules Playground blocks reads of another user's `users/{uid}` |
-| 5.6 | Manual checkpoint testing | ⏳ Last | Cross-install sync verified per Checkpoint §5.6 |
-
-> **What you can test right now:** email/password signup + login, "Forgot password?" reset email, **and Google Sign-In** all work end-to-end against Firebase Auth (users appear in Firebase Console → Authentication → Users). Signup auto-signs-out and bounces back to Login.
-
-> **5.4b manual Firebase config — DONE ✅** (one-time, see `setupfirebase-google-signin.md`):
-> 1. Debug SHA-1 `F2:D9:93:2F:4F:6C:DF:1F:EF:1D:EB:0D:1B:9C:7C:CC:C5:31:FD:DE` added to the Firebase Android app.
-> 2. Google provider enabled in Authentication.
-> 3. `google-services.json` re-downloaded — now has the Android (type 1) + Web (type 3) OAuth clients.
-> 4. Web client ID `95395130249-bobte28q…apps.googleusercontent.com` set in `local.properties` → injected via `BuildConfig.GOOGLE_WEB_CLIENT_ID`.
-
----
-
-### Design reference (locked)
-
-### 5.1 Architecture — Offline-first Repository layer
-
-```
-Compose UI
-   ↓
-ViewModels (unchanged surface — Compose still observes mutableStateOf)
-   ↓
-Repositories (NEW) ── decide: read Room, write to both Room + Firestore
-   ↓                 ↘
-Room (local cache)   Firebase (Auth + Firestore)
-```
-
-- ViewModels keep their public API → screens stay untouched.
-- Room remains the **read** source of truth → app works offline, no UI lag.
-- Firestore is the **write-through** target + push source via real-time listeners.
-- Auth state lives in `FirebaseAuth.currentUser` — replaces the `activeEmail` SharedPreference.
-
-**New files:** `data/repository/AuthRepository.kt`, `UserRepository.kt`, `MessageRepository.kt`, `GalleryRepository.kt`, `FirestoreSchema.kt`
-**Modified:** All 4 ViewModels, `LoginScreen.kt`, `SignupScreen.kt`, `RunTrackApplication.kt`, `app/build.gradle.kts`, root `build.gradle.kts`, `libs.versions.toml`
-
-### 5.2 Firestore schema
-
-```
-users/{uid}
-   ├─ email, runnerName, location, fitnessLevel, personalGoal, bio
-   ├─ following (int), followers (int), photoUri (string?)
-   └─ createdAt (timestamp)
-
-users/{uid}/follows/{friendUid}      ← friendName, createdAt
-users/{uid}/savedRoutes/{title}      ← distance, time, elevation, difficulty, imageRes
-users/{uid}/activities/{activityId}  ← type, title, date, distanceKm, durationMinutes, elevationM, avgPace
-users/{uid}/media/{mediaId}          ← caption, activity, distanceKm, tint, imageRes, imageUri, likes, createdAtMs
-
-conversations/{conversationId}       ← top-level, shared between participants
-   ├─ participants: [uid1, uid2, ...]
-   ├─ isGroup, groupName
-   └─ lastMessageAt
-conversations/{conversationId}/messages/{messageId} ← senderUid, text, timestampMs
-```
-
-**Schema changes from current Room:**
-- Primary key shifts from `email` to Firebase `uid` (emails can change, uids can't). Room adds a `firebaseUid` column.
-- Conversations become top-level + shared (both participants reference the same `conversationId`).
-- Follows reference uids (required for security rules).
-
-**5.2 implementation — DONE ✅** (Room v3 → v4):
-- `UserEntity` + `firebaseUid: String?` (indexed `index_users_firebaseUid`); kept `email` as the local primary key (offline cache + every DAO query stays keyed on email) — `firebaseUid` maps each row to its Firestore doc.
-- `ConversationEntity` + `messages` each get `conversationId: String?` (shared top-level Firestore id, reconciled in 5.3).
-- `UserData` model + VM mappers round-trip `firebaseUid` so `upsertUser` (REPLACE) can't clobber it.
-- `UserDao.findByFirebaseUid` / `setFirebaseUid` accessors added (5.3 backfills on cloud sign-in).
-- `AppDatabase` bumped to **version 4** with a real `MIGRATION_3_4` (three additive nullable `ADD COLUMN`s + the uid index) registered ahead of the destructive fallback → **existing data preserved on upgrade**.
-
-### 5.3 Sync strategy
-
-- **Read:** Room → UI (instant). Firestore listener → Room → UI auto-refreshes via Flow.
-- **Write:** Repository writes to Room first, then to Firestore. Offline writes are queued + retried by Firestore SDK automatically.
-- **Login on new device:** Repository pulls all user docs from Firestore → seeds Room → starts listeners.
-
-**5.3 implementation — UserRepository slice DONE ✅** (`BUILD SUCCESSFUL`, on-device sync not yet manually verified):
-- New `data/cloud/FirestoreSchema.kt` — collection-name constants (`FirestoreCollections`) + DTOs (`UserDoc`, `FollowDoc`, `SavedRouteDoc`, `ActivityDoc`, `MediaDoc`, `ConversationDoc`, `MessageDoc`). All DTO fields default-valued so Firestore's `toObject` no-arg mapping works.
-- New `data/repository/UserRepository.kt` — **full ownership** of the user domain (profile, follows, saved routes): Room is the read source of truth (exposes `observe*` Flows), writes are write-through (Room → Firestore `users/{uid}` + `follows/`, `savedRoutes/` sub-collections), `firebaseUid` is backfilled on sign-in, and `users/{uid}` + `follows/*` snapshot listeners fold cloud changes back into Room. On sign-in the cloud doc wins (fresh-install pull); `propagateRename` (display-name fan-out) moved here.
-- `UpdateUserViewModel.kt` refactored to hold **no DAO refs** — delegates all persistence to `UserRepository`; auth stays in `AuthRepository`. Public VM surface (state + method signatures) unchanged → screens untouched. `applyActiveSession()` mirrors state + starts Room observers + cloud listeners; `logout()` tears both down.
-- `RunTrackApplication` exposes `userRepository` (lazy singleton).
-**5.3 implementation — MessageRepository slice DONE ✅** (`BUILD SUCCESSFUL`, on-device sync not yet manually verified):
-- New `data/repository/MessageRepository.kt` — owns conversation + message persistence. Local Room rows stay keyed by (ownerEmail, friendName); the shared cloud model is top-level `conversations/{conversationId}` (+ `messages` sub-collection) with `participants` as uids.
-- **Bridge decisions:** 1:1 `conversationId` is derived **deterministically from the two sorted uids** (both devices compute the same id, no lookup); groups use a generated UUID stored on the local row. A message is written to Room and Firestore under the **same id**, so the listener echo is idempotent — this let me **drop the old single-device "mirror into the recipient's rows" hack**; real cross-user delivery now flows through Firestore.
-- **Sync:** `startSync` listens to `conversations whereArrayContains participants == myUid`, reconciles each into a local `ConversationEntity` (resolving the other participant's display name from local cache → Firestore `users/{uid}` fallback), and attaches a per-conversation `messages` listener that upserts `MessageEntity` with `fromMe = senderUid == myUid`.
-- Users without a `firebaseUid` (seeded demo runners) have no cloud peer → those conversations stay **local-only**, so demos/offline still work.
-- New DAO query `MessageDao.findConversationByCloudId(conversationId)` maps a shared cloud id back to the local row.
-- `MessageViewModel` refactored to hold **no DAO refs** — delegates all persistence to `MessageRepository`; `startSync` runs on `setActiveUser`, torn down on `clearActiveUser`. Public surface unchanged.
-- `RunTrackApplication` exposes `messageRepository` (lazy singleton).
-
-**5.3 implementation — GalleryRepository slice DONE ✅** (`assembleDebug` green, on-device sync not yet manually verified):
-- New `data/repository/GalleryRepository.kt` — owns reel persistence. Reads from Room (`observeFeed` / `observeMine` / `observeByAuthor`).
-- **Own reels** sync write-through to `users/{uid}/media/{id}` (same id in Room + Firestore → idempotent listener echo); `startMineSync` pulls them back so a fresh install restores *your* reels.
-- **Scope decision:** the cross-user feed stays **Room-backed + locally-seeded demo authors**, because the §5.5 owner-scoped rules (only the owner reads their own `users/{uid}` subtree) forbid reading other users' media. A real cross-user social feed would need a public top-level `media` collection or follow-based fan-out — deferred.
-- **Image limitation:** `imageRes` (drawable id) and `imageUri` (content://) are device-local, so synced reels carry text/stats across devices but not the picture. Real cloud images = Phase 5 (Firebase Storage).
-- `GalleryViewModel` refactored to hold **no DAO refs** — delegates persistence to `GalleryRepository`; keeps the local demo-seed scaffolding (gated by the `galleryDemoSeeded` pref) and feeds reels into state via the chosen repo flow. Public surface unchanged.
-- `RunTrackApplication` exposes `galleryRepository` (lazy singleton).
-
-**All three 5.3 repositories are now code-complete and the app assembles.** Remaining for Phase 3: **5.5** (deploy security rules) and **5.6** (manual cross-install checkpoint testing).
-
-**5.3a Cross-device discovery — DONE ✅ (`assembleDebug` green; needs rules redeploy + on-device test):**
-Fixes "users created on one device don't appear in Search / Gallery on another." Root cause: `otherUsers` (Search) and the Gallery feed read **only local Room**, and owner-only `users/{uid}` rules forbid reading other accounts. Added public, any-authed-user-readable directories:
-- New Room table **`user_directory`** (`UserDirectoryEntity`, keyed by uid) — Room **v4 → v5** with additive `MIGRATION_4_5` (CREATE TABLE, data preserved). DAO gains directory upsert/observe/`findDirectoryByName`.
-- Firestore **`publicProfiles/{uid}`** (public slice: name, location, fitnessLevel, photoUri) — written by `UserRepository.pushProfile` (so every profile save) and on every sign-in (`onSignIn` now always republishes, idempotent merge). A `publicProfiles` listener mirrors all other users into `user_directory`. `observeOtherUsers(email, myUid)` merges local users + directory (deduped by uid/name) → Search shows everyone.
-- Firestore **`publicReels/{mediaId}`** — `GalleryRepository.createPost` writes a public copy alongside `users/{uid}/media`; `startFeedSync` folds *other* users' reels into Room (skipping my own; stored under synthetic `ownerEmail = "uid:<ownerUid>"` so they don't pollute my "my posts"). Wired into `GalleryViewModel.showFeed`.
-- `MessageRepository` uid resolution (`uidForName`) now falls back to the directory, so you can chat/group with users discovered via Search.
-- `firestore.rules`: `publicProfiles/{uid}` + `publicReels/{mediaId}` — read by any signed-in user, write only by the owner (`ownerUid`/uid == `auth.uid`). Private `users/{uid}` stays owner-only (5.6 #5 still holds).
-- **Requires:** redeploy `firestore.rules` (new collections will be denied otherwise), and each existing user must sign in once so their `publicProfiles` entry is created. Images still don't cross devices until Phase 5 (Storage); reels carry text/stats only.
-- **Not yet verified:** actual Firestore writes/reads on a device + Console (needs a network + Firebase Console check). For chat sync specifically, the real test is **two devices/emulators signed in as different real accounts** (demo runners can't sign in, so they don't sync).
-
-### 5.4 Auth flow — **Email/Password (Option A)**
-
-> Passwordless email-link was considered but rejected — Firebase Dynamic Links is deprecated (shutdown Aug 2025) and the alternative requires custom domain + App Links plumbing that's overkill for this app.
-
-**LoginScreen changes:**
-- Add password `OutlinedTextField` (show/hide toggle, `KeyboardType.Password`).
-- `isValid` checks email format AND password length ≥ 6 (Firebase minimum).
-- "Continue" calls `authRepository.signIn(email, password)`.
-- Error handling: `Snackbar` for wrong-password / user-not-found / network-error.
-- Remove the hardcoded `hasif@gmail.com` fallback.
-- Google Sign-In button stays visible but disabled with "Coming soon" tooltip (deferred to a later phase).
-
-**SignupScreen changes:**
-- Add password + confirm password fields. Validate match + length ≥ 6.
-- Call `authRepository.signUp(email, password, name)`:
-  1. `auth.createUserWithEmailAndPassword(...)`
-  2. Write `UserData` to Firestore `users/{uid}`.
-  3. Mirror to Room with the new `firebaseUid`.
-  4. Auto sign-in → navigate Home.
-
-**Session restore:**
-- `RunTrackApplication.onCreate()` checks `FirebaseAuth.getInstance().currentUser`.
-- User present → start on Home, begin syncing. Null → start on Login.
-- Logout → `auth.signOut()`. Room data stays (instant login next time on same device).
-
-**Real-time listeners** (started on login, stopped on logout):
-- `users/{uid}` — my profile.
-- `users/{uid}/follows/*` — my follow list.
-- `conversations where participants contains uid` — my chats.
-- Per visible conversation → `messages` (limit last 50).
-
-### 5.4a Signup → Login redirect — DONE ✅
-
-Originally signup auto-navigated to Home (Firebase auto-signs in the new user after `createUserWithEmailAndPassword`). Changed so the user has to log in explicitly:
-
-- After `userViewModel.registerUser(...)` succeeds in `MainActivity.kt`, call `app.authRepository.signOut()` to clear the auto-sign-in.
-- Show toast: "Account created. Please log in."
-- Navigate to `Screen.Login.route` with `popUpTo(Login) { inclusive = true }` so Signup is removed from the back stack.
-
-### 5.4c Forgot password — email reset flow — DONE ✅
-
-> Firebase Auth ships a built-in password reset flow via `sendPasswordResetEmail(email)`. No custom backend needed — Firebase sends the reset email and hosts the reset page. **Verified end-to-end: reset email received, new password works.**
-
-**LoginScreen changes:**
-- Add a "Forgot password?" `TextButton` below the password field, aligned to the end.
-- Tapping it opens a `ForgotPasswordDialog` (small `AlertDialog`):
-  - Single email `OutlinedTextField` (pre-filled with whatever's already typed in the Login email field).
-  - "Send reset link" button → calls `userViewModel.sendPasswordReset(email)`.
-  - "Cancel" button dismisses.
-- On success → toast "Reset email sent. Check your inbox." + close dialog.
-- On failure → toast with mapped Firebase error (e.g. "No account found for that email").
-
-**AuthRepository changes:**
-- Add `suspend fun sendPasswordReset(email: String): Result<Unit>` wrapping `auth.sendPasswordResetEmail(email).await()`.
-- Map `FirebaseAuthInvalidUserException` → "No account found for that email" (already in `mapAuthError`).
-- Map `FirebaseAuthInvalidCredentialsException` → "Invalid email format".
-
-**UpdateUserViewModel changes:**
-- Add `fun sendPasswordReset(email: String, onResult: (Boolean, String?) -> Unit)` that launches a coroutine, calls `authRepository.sendPasswordReset(email)`, and forwards the result.
-
-**MainActivity wiring:**
-- Pass an `onForgotPassword: (String, (Boolean, String?) -> Unit) -> Unit` callback into `LoginScreen` that calls `userViewModel.sendPasswordReset(...)`.
-
-**Flow:**
-1. User taps "Forgot password?" on Login
-2. Dialog opens with email pre-filled
-3. Tap "Send reset link"
-4. Firebase emails a reset link (template editable in Firebase Console → Authentication → Templates)
-5. User opens the link, sets a new password on Firebase's hosted page
-6. User returns to the app, logs in with the new password
-
-**Checkpoint:** Tap "Forgot password?" → enter registered email → receive email → reset → log in successfully with new password.
-
-### 5.4b Google Sign-In (Credential Manager)
-
-> Google deprecated the legacy `GoogleSignIn` API. We use **Credential Manager + Google ID helper** — the current recommended path.
-
-**Prerequisites (one-time, manual):**
-
-1. **Get debug SHA-1 fingerprint** — run `./gradlew :app:signingReport` and copy the `SHA1` value under `Variant: debug`.
-2. **Add SHA-1 to Firebase Console:**
-   - Project Settings → Your apps → Android app → **Add fingerprint** → paste SHA-1 → Save.
-3. **Re-download `google-services.json`** from Project Settings → replace the one in `app/`.
-4. **Copy Web client ID** — Authentication → Sign-in method → Google → expand → **Web SDK configuration** → copy the `Web client ID` (looks like `123456789-abc...apps.googleusercontent.com`). Store it in `local.properties` as `GOOGLE_WEB_CLIENT_ID=...` (gitignored).
-
-**Code changes:**
-
-| File | Change |
-|---|---|
-| `libs.versions.toml` + `app/build.gradle.kts` | Add `androidx.credentials:credentials`, `androidx.credentials:credentials-play-services-auth`, `com.google.android.libraries.identity.googleid:googleid` |
-| `app/build.gradle.kts` | Inject `GOOGLE_WEB_CLIENT_ID` from `local.properties` into `BuildConfig` via `buildConfigField` |
-| `AuthRepository.kt` | Add `suspend fun signInWithGoogle(idToken: String): Result<AuthUser>` — wraps `GoogleAuthProvider.getCredential(idToken, null)` + `auth.signInWithCredential(...)` |
-| New `GoogleSignInHelper.kt` | Wraps `CredentialManager.getCredential(GetGoogleIdOption)` — returns the ID token. Activity-scoped because Credential Manager needs an Activity context. |
-| `UpdateUserViewModel.kt` | `loginWithGoogle(idToken, onResult)` — call `authRepository.signInWithGoogle`, then mirror profile to Room (same flow as email login). Display name comes from Google account. |
-| `LoginScreen.kt` | "Continue with Google" button: launches `GoogleSignInHelper` via a `LaunchedEffect`/coroutine. On success → forwards ID token to ViewModel. Disable button while in-flight. |
-| `MainActivity.kt` | Wire `onGoogleSignIn` to the helper instead of the "coming soon" Toast. |
-
-**Flow:**
-
-1. User taps "Continue with Google"
-2. `CredentialManager` opens the system account picker
-3. User selects their Google account
-4. Helper returns a Google **ID token**
-5. ViewModel sends it to `AuthRepository.signInWithGoogle(idToken)`
-6. Firebase verifies the token → returns `FirebaseUser`
-7. ViewModel mirrors the profile to Room → navigates Home
-
-**Failure cases handled:**
-- User cancels picker → no-op (no Toast spam)
-- No Google account on device → Toast "No Google account found"
-- Token invalid / network error → Toast with Firebase error message
-- SHA-1 missing → `DEVELOPER_ERROR` → Toast "Google Sign-In not configured" + Logcat hint to add SHA-1
-
-**Checkpoint:** Tap Google button → account picker → pick account → land on Home. Same email in Firebase Console (linked as Google provider, not Email/Password). **✅ Verified on-device.**
-
-#### 5.4b — what actually shipped (after debugging on a physical Realme device)
-
-A few things changed from the original design above during implementation + on-device debugging:
-
-- **`GetSignInWithGoogleOption` instead of `GetGoogleIdOption`.** `GoogleSignInHelper` uses the button-driven flow, which always shows the full account picker. `GetGoogleIdOption` (the seamless/bottom-sheet flow) threw `NoCredentialException` on an explicit button press before any account was authorized — that was the first bug.
-- **`AuthUser` carries `displayName` + `photoUrl`;** `loginWithGoogle` seeds a new user's `runnerName` and profile `photoUri` from the Google account.
-- **`loginWithGoogle` guards the post-sign-in hydration** in try/catch so `onResult` always fires — a Room error after sign-in can no longer leave the UI stuck on Login with no feedback.
-- **Diagnostics:** failures log to Logcat tag `GoogleSignIn` and show a `LENGTH_LONG` toast.
-- **`MainActivity`** wires `onGoogleSignIn` to launch the helper in `rememberCoroutineScope()`, handling cancel / no-credential / not-configured / generic errors.
-
-**Network gotcha (not a code bug):** on restricted WiFi (e.g. campus/office AP doing TLS inspection), Google Play Services can't hold the HTTP/2 connection to Google's auth servers → `net::ERR_HTTP2_PING_FAILED` / `UNAVAILABLE`, the GMS flow aborts, and the app bounces back to Login. **Fix: use mobile data or an unrestricted network** for Google sign-in. Also worth checking on ColorOS/Realme: don't battery-restrict Google Play services; set date & time automatically. Confirmed working on mobile data.
-
----
-
-### 5.5 Security rules
-
-- `users/{uid}/**` — read+write only if `request.auth.uid == uid`.
-- `conversations/{id}` — read+write only if `request.auth.uid in resource.data.participants`.
-
-**5.5 implementation — rules written ✅, deploy pending ⏳:**
-- New `firestore.rules` (rules_version 2):
-  - `users/{uid}` + all sub-collections (`follows`, `savedRoutes`, `activities`, `media`) — **owner-only** (`request.auth.uid == uid`). Satisfies checkpoint §5.6 #5 (another user's `users/{uid}` is unreadable).
-  - `conversations/{id}` — **participants-only**; `create` validates `request.auth.uid in request.resource.data.participants` (since `resource` is absent on create).
-  - `conversations/{id}/messages/{mid}` — read if you're a participant (via `get()` on the parent); `create` additionally requires `senderUid == request.auth.uid` (no spoofing); `update`/`delete` denied (messages immutable).
-- New `firebase.json` (points `firestore.rules`) + `.firebaserc` (default project `enerva-be887`) → deploy with `firebase deploy --only firestore:rules`, or paste the file into Firebase Console → Firestore → Rules → Publish.
-- **Code interaction handled:** owner-only user docs mean a chat participant can't read the other user's profile to get their display name. Fixed by **denormalising `participantNames` (uid → name) onto the conversation doc** — `ConversationDoc` gained the field; `MessageRepository.sendMessage`/`createGroup` write it; `reconcileConversation` reads names from there (`nameForParticipant`) instead of fetching `users/{uid}`. So profiles stay private *and* chat labels resolve. (`BUILD SUCCESSFUL`.)
-
-### 5.6 Checkpoint
-Data syncs across installs; logging in on a fresh device pulls profile + reels + chats from cloud; offline writes queue and replay on reconnect.
-
----
-
-## 6. Phase 4 — Google Maps API (real map in Record+Maps)
-
+### Phase 3 sub-tracker (Firebase)
+
+| # | Sub-phase | Status |
+|---|-----------|--------|
+| 5.0 | Firebase console setup (project, JSON, Auth, Firestore) | ✅ Done |
+| 5.1 | Gradle wiring (BoM, plugin, deps) | ✅ Done |
+| 5.2 | Schema migrations (Room v4 + `firebaseUid` + `conversationId`) | ✅ Done |
+| 5.3 | Repositories + Firestore listeners (User / Message / Gallery) | ✅ Code-complete; on-device sync unverified |
+| 5.3a | Cross-device discovery (`publicProfiles` + `publicReels`) | ✅ Code-complete; needs rules redeploy + test |
+| 5.4 | Auth — email/password | ✅ Done |
+| 5.4a | Signup → Login redirect | ✅ Done |
+| 5.4b | Google Sign-In (Credential Manager) | ✅ Done & verified on-device |
+| 5.4c | Forgot password (email reset) | ✅ Done & verified |
+| 5.5 | Security rules | ✅ Written; ⏳ **deploy pending** |
+| 5.6 | Manual cross-install checkpoint | ⏳ Last |
+
+> **Implementation notes worth keeping:**
+> - **Google Sign-In** uses `GetSignInWithGoogleOption` (button-driven, always shows the picker) — `GetGoogleIdOption` threw `NoCredentialException` on an explicit press. `AuthUser` carries `displayName` + `photoUrl` to seed a new profile.
+> - **Network gotcha:** on TLS-inspecting WiFi (campus/office), GMS can't hold the HTTP/2 connection to Google's auth servers (`ERR_HTTP2_PING_FAILED`). Use mobile data / an unrestricted network. Don't battery-restrict Google Play services on ColorOS/Realme.
+> - **Cross-user feed scope:** owner-only rules forbid reading others' `users/{uid}/media`, so the public feed is served by the `publicReels` collection (not direct reads).
+> - **Image limitation:** `imageRes` (drawable id) and `imageUri` (`content://`) are device-local — synced reels carry text/stats across devices but **not the picture** until Phase 5 adds Firebase Storage.
+
+### Phase 4 — Google Maps (real map in Record)
 1. Add `maps-compose` + `play-services-maps`.
-2. Maps API key via `local.properties`/secrets plugin (**never commit the key**). **(needs your API key)**
-3. Replace `Canvas` backdrop with `GoogleMap` composable.
-4. Draw live trail as a `Polyline` from `RecordViewModel.path`; current-location marker.
-5. **Checkpoint: live GPS path on a real map.**
+2. Maps API key via `local.properties` / secrets plugin (**never commit the key**).
+3. Replace the `Canvas` breadcrumb backdrop with a `GoogleMap` composable.
+4. Draw the live trail as a `Polyline` from `RecordViewModel.path`; add a current-location marker.
+5. Wire the currently-inert map action buttons (layers / 3D / recenter) and route filters.
+6. **Checkpoint:** live GPS path on a real map.
 
----
-
-## 7. Phase 5 — Camera in Record screen
-
+### Phase 5 — Camera in Record
 1. Add `CAMERA` permission.
-2. CameraX capture (`PreviewView` + `ImageCapture`/`VideoCapture`) using existing deps.
+2. CameraX capture (`PreviewView` + `ImageCapture`) using existing deps.
 3. Capture button on Record; request camera + location permissions.
-4. Save media → `MediaEntity` (Phase 2) + optional Firebase Storage upload (Phase 3).
+4. Save media → `MediaEntity` + upload to **Firebase Storage** (gives real cross-device images).
 5. Captured media appears in Gallery reels.
-6. **Checkpoint: capture from Record → appears in Gallery.**
+6. **Checkpoint:** capture from Record → appears in Gallery on another device.
 
 ---
 
-## 8. Order of work
+## 9. Code-Quality & Refactor Backlog
 
-Phase 0 (rename ✅) → Phase 1 (trim ✅) → Phase 2 (Room ✅) → **Phase 3 (Firebase) ← next** → Phase 4 (Maps) → Phase 5 (Camera).
+Concrete, low-risk cleanups found while auditing the codebase. None change behaviour; all raise the bar for a portfolio reader.
 
-Each phase ends buildable. Phases 3 & 4 need credentials from you (Firebase project file, Maps API key).
+| Priority | Item | Why |
+|----------|------|-----|
+| **P1** | **Rename ViewModel files to match their class.** `view_model/UpdateLoginScreen.kt` contains `LoginViewModel`; `UpdateSignupScreen.kt` and `UpdateUserViewModel.kt` likewise mismatch (and read like *screens* despite being VMs). Rename files → `LoginViewModel.kt`, `SignupViewModel.kt`, `UserViewModel.kt`. | File/class mismatch is the first thing a reviewer trips on; it implies the layering is muddled when it isn't. |
+| **P1** | **Remove the hardcoded `(A211198)` matric string** from the Home "Your Progress" header (`HomeScreen.kt`). Show the user's name instead. | A student id leaking into production UI is an obvious tell and looks unfinished. |
+| **P1** | **Refresh the README.** It still lists 16 screens (Notify/Settings/Groups/You/Main) and a `network/` package that no longer reflects reality. | The README is the front door; it currently contradicts the actual app. |
+| **P2** | **Audit & remove orphaned `model/` files** left from the screen trim — `Club.kt`, `Challenges.kt`, `Notifications.kt`, `Workout.kt` (and verify `Friends.kt`). Confirm no live references before deleting. | Dead code inflates the surface area and confuses readers. |
+| **P2** | **Add a smoke test suite.** Only the template `ExampleUnitTest` / `ExampleInstrumentedTest` exist. Add unit tests for repositories (id derivation, mappers) and DAO tests (Room in-memory). | "Has tests" is a baseline signal of engineering maturity. |
+| **P2** | **Standardise the brand.** Code/package say `RunTrack` (e.g. `RunTrackApplication`, `RunTrackTheme`); the README/product is **Enerva**. Pick one and document the other as the internal codename. | Consistent naming reads as intentional. |
+| **P3** | **Introduce Hilt** to replace the manual `ViewModelFactory` + `Application`-held singletons. | Cleaner DI; nice talking point, but the manual approach is fine and works — low urgency. |
+| **P3** | **Extract magic numbers / strings** (FAB sizing math, filter labels, status text) into named constants / `strings.xml`. | Readability + future localisation. |
+
+> Suggested order: do the three **P1** items together (they're cosmetic but high-signal), then tests, then the rest opportunistically.
+
+---
+
+## 10. UX Improvements
+
+Two tracks: **quick wins** that are realistically shippable solo and raise polish immediately, and a **vision** for where the product could go.
+
+### 10.1 Quick wins (P1 — do these first)
+
+| Area | Improvement |
+|------|-------------|
+| **Empty states** | Every list (Gallery feed, Search, Messages, Profile grid) should show a friendly illustration + one-line prompt + CTA instead of blank space. (Home already does this for "No posts yet" — extend the pattern.) |
+| **Loading & error states** | Show skeletons/spinners while Room/Firestore hydrate, and a retry affordance on failure. Right now sync failures are largely silent. |
+| **Record screen honesty** | The map backdrop is a placeholder grid and the action buttons/filters are inert. Either ship Phase 4's real map or visibly mark these as "coming soon" so they don't feel broken. |
+| **Accessibility** | Add `contentDescription` to every meaningful icon, ensure 48dp minimum touch targets, and check colour contrast in the dark theme. |
+| **Feedback on actions** | Replace silent toasts-or-nothing with consistent feedback: snackbars for errors, subtle confirmation for follows/saves/posts. |
+| **Search UX** | Debounce input, show "no results" state, and make follow/message actions one tap with immediate optimistic feedback. |
+| **Pull-to-refresh** | On feed/inbox screens, so users have an obvious way to force a sync. |
+| **Form validation inline** | Login/Signup should show field-level validation (email format, password ≥ 6, password match) before submit, not just on failure. |
+
+### 10.2 Vision (where Enerva could go)
+
+| Theme | Idea |
+|-------|------|
+| **Motivation loops** | Streaks, weekly goals, and **achievements/badges** (first 5K, 7-day streak) — directly targets the "motivation fades" problem from §1. |
+| **Social competition** | Friend & club **leaderboards** (weekly distance), kudos/reactions on reels, comments. |
+| **Live & safety** | **Live activity sharing** ("a friend is running now"), live location share with a trusted contact for safety on solo runs. |
+| **Smarter routes** | Real route discovery from the Maps/places API, surfacing routes by distance/elevation/difficulty near the user (the Record filters already hint at this). |
+| **Rich reels** | Phase-5 camera capture + an auto-generated "run summary card" (map snapshot + stats) as the reel image. |
+| **Coaching** | Lightweight training plans / suggested next workout based on recent activity — could later use an on-device or API model for personalised nudges. |
+| **Notifications** | Re-introduce a focused notifications surface (new follower, message, friend finished a run) — but as push, not a dead screen. |
+
+> The vision items are deliberately sequenced so each builds on shipped infrastructure: achievements/leaderboards reuse the activity + follow data already modelled; live sharing reuses the Firestore listener pattern; rich reels depend on Phase 5 (camera + Storage).
+
+---
+
+*Enerva is an educational / portfolio project — not a commercial product. Internal code uses the `RunTrack` codename; the product name is Enerva.*

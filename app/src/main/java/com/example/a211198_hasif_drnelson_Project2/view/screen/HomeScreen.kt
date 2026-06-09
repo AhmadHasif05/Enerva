@@ -116,7 +116,7 @@ fun GallerySection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Your Progress - (A211198)",
+                    text = if (myName == "You") "Your Progress" else "$myName's Progress",
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground,
