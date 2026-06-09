@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">a211198_Hasif_DrNelson_Project2</string>
+    <!-- Product name. The Gradle module / package keeps the graded-assignment
+         name (a211198_Hasif_DrNelson_Project2); "Enerva" is the brand users see. -->
+    <string name="app_name">Enerva</string>
 </resources>
