@@ -387,4 +387,4 @@ private fun SavedRouteEntity.toDoc() = SavedRouteDoc(
 // Firestore document ids can't contain '/'. Display names / route titles are
 // otherwise fine as ids (owner-scoped sub-collection, so collisions only within
 // one user's own follows/routes).
-private fun String.toFollowDocId(): String = replace('/', '_').ifBlank { "_" }
+internal fun String.toFollowDocId(): String = replace('/', '_').ifBlank { "_" }

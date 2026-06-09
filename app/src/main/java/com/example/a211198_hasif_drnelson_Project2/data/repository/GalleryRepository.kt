@@ -153,7 +153,7 @@ class GalleryRepository(
 
 // ---- mappers ----
 
-private fun MediaEntity.toDoc() = MediaDoc(
+internal fun MediaEntity.toDoc() = MediaDoc(
     id = id,
     author = author,
     caption = caption,
@@ -166,7 +166,7 @@ private fun MediaEntity.toDoc() = MediaDoc(
     createdAtMs = createdAtMs
 )
 
-private fun MediaEntity.toPublicReel(ownerUid: String) = PublicReelDoc(
+internal fun MediaEntity.toPublicReel(ownerUid: String) = PublicReelDoc(
     id = id,
     ownerUid = ownerUid,
     author = author,
@@ -182,7 +182,7 @@ private fun MediaEntity.toPublicReel(ownerUid: String) = PublicReelDoc(
 
 // Remote reels are stored under a synthetic ownerEmail ("uid:<ownerUid>") so they
 // never collide with my own email-keyed posts or leak into my "my posts" view.
-private fun PublicReelDoc.toEntity() = MediaEntity(
+internal fun PublicReelDoc.toEntity() = MediaEntity(
     id = id,
     ownerEmail = "uid:$ownerUid",
     author = author,
@@ -196,7 +196,7 @@ private fun PublicReelDoc.toEntity() = MediaEntity(
     createdAtMs = createdAtMs
 )
 
-private fun MediaDoc.toEntity(ownerEmail: String) = MediaEntity(
+internal fun MediaDoc.toEntity(ownerEmail: String) = MediaEntity(
     id = id,
     ownerEmail = ownerEmail,
     author = author,

@@ -286,7 +286,7 @@ class MessageRepository(
         val myUid = userDao.findByEmail(ownerEmail)?.firebaseUid
         val friendUid = uidForName(friendName)
         return if (myUid != null && friendUid != null) {
-            listOf(myUid, friendUid).sorted().joinToString("_")
+            oneToOneConversationId(myUid, friendUid)
         } else {
             UUID.randomUUID().toString()
         }
@@ -318,3 +318,12 @@ class MessageRepository(
         }
     }
 }
+
+/**
+ * The deterministic 1:1 conversation id: the two participant uids sorted and
+ * joined with '_'. Pulled out as a pure, side-effect-free function so both
+ * devices compute the same id (order-independent) and so it can be unit-tested
+ * without a database.
+ */
+internal fun oneToOneConversationId(uidA: String, uidB: String): String =
+    listOf(uidA, uidB).sorted().joinToString("_")
