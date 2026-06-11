@@ -14,25 +14,25 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.a211198_hasif_drnelson_Project2.R
 import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
 import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
-import com.example.a211198_hasif_drnelson_Project2.data.entities.ActivityRecordEntity
-import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-// Backs RecordScreen. Owns timer + GPS-derived stats + breadcrumb path.
+// Backs RecordScreen. Owns the timer + breadcrumb state; delegates GPS gating
+// and entity construction to the pure units (RouteAccumulator, RunStats).
 class RecordViewModel(application: Application) : AndroidViewModel(application) {
 
     private val activityDao = AppDatabase.get(application).activityDao()
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
+
+    // Pure GPS logic; the observable state below mirrors its kept points.
+    private val route = RouteAccumulator()
 
     // True while the play button is engaged. Pause flips it to false.
     var isRecording by mutableStateOf(false)
@@ -42,39 +42,31 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
     var elapsedSeconds by mutableStateOf(0L)
         private set
 
-    // Total distance in kilometres (sum of segment lengths between fixes).
+    // Total distance in kilometres (mirrors RouteAccumulator.distanceKm).
     var distanceKm by mutableStateOf(0.0)
         private set
 
-    // Most recent instantaneous speed in km/h.
-    var currentSpeedKmh by mutableStateOf(0.0)
-        private set
-
-    // Compose-observable list of breadcrumb points — TrailCanvas reads it.
+    // Compose-observable breadcrumb — RecordScreen draws this as a Polyline.
     val path: MutableList<TrackPoint> = mutableStateListOf()
 
     // Internal timing bookkeeping for the start/pause/resume cycle.
-    private var startElapsedMs: Long = 0L   // SystemClock.elapsedRealtime() at last start()
-    private var accumulatedMs: Long = 0L    // Total ms accumulated across previous segments
-    private var timerJob: Job? = null       // The coroutine that ticks elapsedSeconds
+    private var startElapsedMs: Long = 0L
+    private var accumulatedMs: Long = 0L
+    private var timerJob: Job? = null
 
-    // Begin / resume recording. Idempotent if already recording.
     fun start() {
         if (isRecording) return
         isRecording = true
         startElapsedMs = SystemClock.elapsedRealtime()
-        // Launch a coroutine that ticks elapsedSeconds while we're recording.
-        // viewModelScope auto-cancels if the ViewModel is cleared.
         timerJob = viewModelScope.launch {
             while (isRecording) {
                 val live = SystemClock.elapsedRealtime() - startElapsedMs
                 elapsedSeconds = (accumulatedMs + live) / 1000
-                delay(200) // 5 Hz refresh — smooth enough for the eye, easy on the CPU
+                delay(200) // 5 Hz refresh
             }
         }
     }
 
-    // Stop ticking but keep the elapsed time and path so resume continues from here.
     fun pause() {
         if (!isRecording) return
         isRecording = false
@@ -83,7 +75,6 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
         accumulatedMs += SystemClock.elapsedRealtime() - startElapsedMs
     }
 
-    // Wipe everything — used by the Stop and Refresh buttons.
     fun reset() {
         isRecording = false
         timerJob?.cancel()
@@ -91,71 +82,51 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
         accumulatedMs = 0L
         elapsedSeconds = 0L
         distanceKm = 0.0
-        currentSpeedKmh = 0.0
+        route.reset()
         path.clear()
     }
 
-    // Feed a new GPS sample. Speed is in m/s if known (else null, and we compute from positions).
-    fun onLocation(lat: Double, lng: Double, speedMps: Float?, timeMs: Long) {
-        // Ignore samples received while paused so unwanted distance isn't logged.
+    // Feed a new GPS sample. accuracyM is the fix's horizontal accuracy in
+    // metres (null if unknown). Only fixes that pass the gates are kept.
+    fun onLocation(lat: Double, lng: Double, accuracyM: Float?, timeMs: Long) {
         if (!isRecording) return
-        val previous = path.lastOrNull()
-        path.add(TrackPoint(lat, lng, timeMs))
-
-        if (previous != null) {
-            val segmentKm = haversineKm(previous.lat, previous.lng, lat, lng)
-            distanceKm += segmentKm
-
-            currentSpeedKmh = if (speedMps != null && speedMps > 0f) {
-                // Device reported speed — convert m/s -> km/h.
-                speedMps * 3.6
-            } else {
-                // Fall back to dividing distance by time between samples.
-                val dtSec = (timeMs - previous.timeMs).coerceAtLeast(1L) / 1000.0
-                if (dtSec > 0) (segmentKm / dtSec) * 3600.0 else 0.0
-            }
+        if (route.addFix(lat, lng, accuracyM, timeMs)) {
+            path.add(route.points.last())
+            distanceKm = route.distanceKm
         }
     }
 
-    // Persist the current run to Room. Inserts both an ActivityRecord and a
-    // gallery MediaEntity so the activity shows up in the reels feed. Safe to
-    // call from a button — does nothing if there's no recorded distance yet.
-    fun saveActivity(type: String = "Run", caption: String = "New run") {
+    // Persist the current run to Room: an ActivityRecord plus a gallery reel.
+    // imageUri is the route-snapshot path, or null for a stats-only post.
+    fun saveActivity(type: String = "Run", caption: String = "New run", imageUri: String? = null) {
         if (elapsedSeconds == 0L && distanceKm == 0.0) return
         val email = prefs.getString("activeEmail", null).orEmpty()
         if (email.isBlank()) return
         val now = System.currentTimeMillis()
         val dateStr = SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(now))
-        val record = ActivityRecordEntity(
+        val record = buildRunRecord(
             id = UUID.randomUUID().toString(),
             ownerEmail = email,
-            type = type,
-            title = caption,
-            date = dateStr,
-            distanceKm = distanceKm,
-            durationMinutes = (elapsedSeconds / 60).toInt(),
-            elevationM = 0,
-            avgPace = formatElapsed(elapsedSeconds)
-        )
-        val media = MediaEntity(
-            id = UUID.randomUUID().toString(),
-            ownerEmail = email,
-            author = "You",
             caption = caption,
-            activity = type,
-            distanceKm = "%.1f".format(distanceKm),
-            tint = 0xFF1E3A5F,
-            imageRes = R.drawable.lakesidetrail,
-            imageUri = null,
-            likes = 0,
-            createdAtMs = now
+            type = type,
+            distanceKm = distanceKm,
+            elapsedSeconds = elapsedSeconds,
+            dateStr = dateStr,
+        )
+        val media = buildRunMedia(
+            id = UUID.randomUUID().toString(),
+            ownerEmail = email,
+            caption = caption,
+            type = type,
+            distanceKm = distanceKm,
+            imageUri = imageUri,
+            createdAtMs = now,
         )
         viewModelScope.launch {
             activityDao.insertActivity(record)
             activityDao.insertMedia(media)
         }
     }
-
 }
 
 val RecordViewModelFactory: ViewModelProvider.Factory = viewModelFactory {
