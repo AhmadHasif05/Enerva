@@ -110,7 +110,7 @@ fun RunSummaryCard(
 }
 
 @Composable
-private fun SummaryStatTile(icon: ImageVector, label: String, value: String, modifier: Modifier) {
+private fun SummaryStatTile(icon: ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     Column(
         modifier = modifier.padding(vertical = 14.dp),
@@ -153,6 +153,7 @@ private fun PaceLegend(modifier: Modifier = Modifier) {
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
                 .background(
+                    // Mirrors the pace ramp stops in PaceColors.kt (fast→slow).
                     Brush.horizontalGradient(
                         listOf(Color(0xFF4CAF50), Color(0xFFFFC107), Color(0xFFFC4C02))
                     )
