@@ -23,19 +23,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Math helpers for the Haversine distance formula below.
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
-
-// One sample on the user's GPS trail. timeMs lets us compute speed when the
-// device-reported speed isn't available.
-data class TrackPoint(val lat: Double, val lng: Double, val timeMs: Long)
 
 // Backs RecordScreen. Owns timer + GPS-derived stats + breadcrumb path.
 class RecordViewModel(application: Application) : AndroidViewModel(application) {
@@ -165,18 +156,6 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // Great-circle distance between two lat/lng pairs in kilometres.
-    // Standard Haversine formula — accurate enough for activity tracking.
-    private fun haversineKm(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
-        val r = 6371.0 // Earth radius in km
-        val dLat = Math.toRadians(lat2 - lat1)
-        val dLng = Math.toRadians(lng2 - lng1)
-        val a = sin(dLat / 2).let { it * it } +
-            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
-            sin(dLng / 2).let { it * it }
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return r * c
-    }
 }
 
 val RecordViewModelFactory: ViewModelProvider.Factory = viewModelFactory {
