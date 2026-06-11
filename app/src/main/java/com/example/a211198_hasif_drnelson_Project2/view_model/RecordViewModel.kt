@@ -47,6 +47,15 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
     var distanceKm by mutableStateOf(0.0)
         private set
 
+    // Selected activity type for this run ("Run" or "Walk"); drives the chip,
+    // the stats header, and the type stored on save. "Jog" is treated as "Run".
+    var activityType by mutableStateOf("Run")
+        private set
+
+    fun toggleActivityType() {
+        activityType = if (activityType == "Run") "Walk" else "Run"
+    }
+
     // Compose-observable breadcrumb — RecordScreen draws this as a Polyline.
     val path: MutableList<TrackPoint> = mutableStateListOf()
 
@@ -85,6 +94,7 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
         distanceKm = 0.0
         route.reset()
         path.clear()
+        activityType = "Run"
     }
 
     // Feed a new GPS sample. accuracyM is the fix's horizontal accuracy in
