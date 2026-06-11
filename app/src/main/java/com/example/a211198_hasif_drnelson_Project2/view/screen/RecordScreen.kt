@@ -1,31 +1,24 @@
 package com.example.a211198_hasif_drnelson_Project2.view.screen
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.os.Looper
-import androidx.compose.foundation.Canvas
+import android.location.Location
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -33,18 +26,25 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.example.a211198_hasif_drnelson_Project2.BuildConfig
 import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModelFactory
-import com.example.a211198_hasif_drnelson_Project2.view_model.TrackPoint
 import com.example.a211198_hasif_drnelson_Project2.view_model.formatElapsed
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
+import org.ramani.compose.CameraPosition
+import org.ramani.compose.CenterState
+import org.ramani.compose.Circle
+import org.ramani.compose.LocationRequestProperties
+import org.ramani.compose.LocationStyling
+import org.ramani.compose.MapLibre
+import org.ramani.compose.MapStyle
+import org.ramani.compose.Polyline
+import org.ramani.compose.rememberCameraPositionState
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -53,7 +53,6 @@ fun RecordScreen(
     recordViewModel: RecordViewModel = viewModel(factory = RecordViewModelFactory)
 ) {
     val colors = MaterialTheme.colorScheme
-    val context = LocalContext.current
 
     val permission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
 
@@ -61,20 +60,81 @@ fun RecordScreen(
         if (!permission.status.isGranted) permission.launchPermissionRequest()
     }
 
-    // Wire FusedLocationProviderClient to the ViewModel while recording.
-    LocationUpdatesEffect(
-        enabled = recordViewModel.isRecording && permission.status.isGranted,
-        onLocation = { lat, lng, speed, time ->
-            recordViewModel.onLocation(lat, lng, speed, time)
+    // --- Map view-state (no ViewModel involvement) ---
+    // The map's built-in location layer reports the latest fix here; we forward it to
+    // the ViewModel (which computes distance/speed and grows the breadcrumb path).
+    val userLocation = remember { mutableStateOf(Location(null)) }
+    val cameraMode = remember { mutableIntStateOf(CameraMode.NONE) }
+    val cameraPositionState = rememberCameraPositionState(CameraPosition(zoom = 16.0))
+    val startCenter = rememberSaveable(saver = CenterState.Saver) { CenterState(LatLng(0.0, 0.0)) }
+    var tilted by remember { mutableStateOf(false) }
+
+    // Available map styles for the Layers button. OpenFreeMap needs no key (so the map
+    // always renders); a MapTiler key (local.properties) unlocks the extra styles.
+    val styleUrls = remember {
+        buildList {
+            add("https://tiles.openfreemap.org/styles/liberty")
+            add("https://tiles.openfreemap.org/styles/bright")
+            val key = BuildConfig.MAPTILER_API_KEY
+            if (key.isNotBlank()) {
+                add("https://api.maptiler.com/maps/streets-v2/style.json?key=$key")
+                add("https://api.maptiler.com/maps/satellite/style.json?key=$key")
+                add("https://api.maptiler.com/maps/outdoor-v2/style.json?key=$key")
+            }
         }
-    )
+    }
+    var styleIndex by remember { mutableIntStateOf(0) }
+
+    // Polyline colour as a MapLibre hex string (#RRGGBB) from the theme primary.
+    val trailColorHex = remember(colors.primary) {
+        String.format("#%06X", 0xFFFFFF and colors.primary.toArgb())
+    }
+
+    // Forward each valid fix to the ViewModel while recording.
+    LaunchedEffect(userLocation.value) {
+        val loc = userLocation.value
+        if (recordViewModel.isRecording && (loc.latitude != 0.0 || loc.longitude != 0.0)) {
+            val speed: Float? = if (loc.hasSpeed()) loc.speed else null
+            recordViewModel.onLocation(loc.latitude, loc.longitude, speed, loc.time)
+        }
+    }
+
+    // Pin the start marker to the first recorded point.
+    LaunchedEffect(recordViewModel.path.firstOrNull()) {
+        recordViewModel.path.firstOrNull()?.let { startCenter.center = LatLng(it.lat, it.lng) }
+    }
+
+    // Follow the user while recording; release the camera when paused/stopped.
+    LaunchedEffect(recordViewModel.isRecording) {
+        cameraMode.intValue = if (recordViewModel.isRecording) CameraMode.TRACKING else CameraMode.NONE
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        // --- Canvas-drawn breadcrumb trail (replaces the static map placeholder) ---
-        TrailCanvas(
-            points = recordViewModel.path,
-            modifier = Modifier.fillMaxSize()
-        )
+        // --- Real vector map (replaces the Canvas breadcrumb backdrop) ---
+        MapLibre(
+            modifier = Modifier.fillMaxSize(),
+            style = MapStyle.Uri(styleUrls[styleIndex]),
+            cameraPositionState = cameraPositionState,
+            locationRequestProperties = LocationRequestProperties(),
+            locationStyling = LocationStyling(enablePulse = true),
+            userLocation = userLocation,
+            renderMode = RenderMode.COMPASS,
+            cameraMode = cameraMode,
+        ) {
+            val trail = recordViewModel.path.map { LatLng(it.lat, it.lng) }
+            if (trail.size >= 2) {
+                Polyline(points = trail, color = trailColorHex, lineWidth = 5f)
+            }
+            if (trail.isNotEmpty()) {
+                Circle(
+                    centerState = startCenter,
+                    radius = 8f,
+                    color = "#4CAF50",
+                    borderColor = "White",
+                    borderWidth = 2f,
+                )
+            }
+        }
 
         if (recordViewModel.path.isEmpty()) {
             Column(
@@ -97,87 +157,45 @@ fun RecordScreen(
             }
         }
 
-        // --- Top bar: maps search + route filters (merged from the old Maps screen) ---
-        Column(
+        // --- Top-left back / Activities button (search + filter bar removed in Phase 4) ---
+        IconButton(
+            onClick = { navController?.popBackStack() },
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .padding(top = 16.dp)
+                .align(Alignment.TopStart)
+                .padding(top = 16.dp, start = 16.dp)
+                .background(colors.surface, CircleShape)
+                .size(48.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { navController?.popBackStack() },
-                    modifier = Modifier
-                        .background(colors.surface, CircleShape)
-                        .size(48.dp)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.DirectionsRun, contentDescription = "Activities", tint = colors.primary)
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Surface(
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = colors.surface
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    ) {
-                        Text("Search locations", color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
-                        VerticalDivider(modifier = Modifier.height(24.dp).padding(horizontal = 8.dp), color = colors.outline)
-                        Icon(Icons.Outlined.BookmarkBorder, contentDescription = null, tint = colors.onSurface)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Saved", color = colors.onSurface, fontSize = 14.sp)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            val filters = listOf("Routes", "Length", "Difficulty", "Elevation")
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filters) { filter ->
-                    FilterChip(
-                        selected = filter == "Routes",
-                        onClick = { },
-                        label = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(filter)
-                                if (filter == "Routes") {
-                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = colors.surface,
-                            labelColor = colors.onSurface,
-                            selectedContainerColor = colors.primary.copy(alpha = 0.2f),
-                            selectedLabelColor = colors.primary
-                        )
-                    )
-                }
-            }
+            Icon(Icons.AutoMirrored.Filled.DirectionsRun, contentDescription = "Activities", tint = colors.primary)
         }
 
+        // --- Right-side map action buttons (now functional) ---
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            RecordMapActionButton(Icons.Outlined.Layers)
-            RecordMapActionButton(Icons.Default.ViewInAr)
-            RecordMapActionButton(Icons.Default.MyLocation)
+            // Layers: cycle through the available map styles.
+            RecordMapActionButton(Icons.Outlined.Layers) {
+                styleIndex = (styleIndex + 1) % styleUrls.size
+            }
+            // 3D: toggle camera tilt.
+            RecordMapActionButton(Icons.Default.ViewInAr) {
+                tilted = !tilted
+                cameraPositionState.position =
+                    cameraPositionState.position.copy(tilt = if (tilted) 45.0 else 0.0)
+            }
+            // Recenter on the user's current position.
+            RecordMapActionButton(Icons.Default.MyLocation) {
+                val loc = userLocation.value
+                if (loc.latitude != 0.0 || loc.longitude != 0.0) {
+                    cameraPositionState.position = cameraPositionState.position.copy(
+                        target = LatLng(loc.latitude, loc.longitude),
+                        zoom = 16.0
+                    )
+                }
+            }
         }
 
         IconButton(
@@ -318,106 +336,6 @@ fun RecordScreen(
     }
 }
 
-@SuppressLint("MissingPermission")
-@Composable
-private fun LocationUpdatesEffect(
-    enabled: Boolean,
-    onLocation: (lat: Double, lng: Double, speed: Float?, time: Long) -> Unit
-) {
-    val context = LocalContext.current
-
-    DisposableEffect(enabled) {
-        if (!enabled) return@DisposableEffect onDispose { }
-
-        val client = LocationServices.getFusedLocationProviderClient(context)
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
-            .setMinUpdateIntervalMillis(500L)
-            .setMinUpdateDistanceMeters(1f)
-            .build()
-
-        val callback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                for (location in result.locations) {
-                    val speed: Float? = if (location.hasSpeed()) location.speed else null
-                    onLocation(location.latitude, location.longitude, speed, location.time)
-                }
-            }
-        }
-
-        client.requestLocationUpdates(request, callback, Looper.getMainLooper())
-
-        onDispose {
-            client.removeLocationUpdates(callback)
-        }
-    }
-}
-
-@Composable
-private fun TrailCanvas(points: List<TrackPoint>, modifier: Modifier = Modifier) {
-    val primary = MaterialTheme.colorScheme.primary
-    val outline = MaterialTheme.colorScheme.outline
-
-    Canvas(modifier = modifier) {
-        // Faint grid lines as a stand-in for the map background.
-        val gridStep = 64f
-        var x = 0f
-        while (x < size.width) {
-            drawLine(
-                color = outline.copy(alpha = 0.15f),
-                start = Offset(x, 0f),
-                end = Offset(x, size.height),
-                strokeWidth = 1f
-            )
-            x += gridStep
-        }
-        var y = 0f
-        while (y < size.height) {
-            drawLine(
-                color = outline.copy(alpha = 0.15f),
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = 1f
-            )
-            y += gridStep
-        }
-
-        if (points.size < 2) return@Canvas
-
-        val minLat = points.minOf { it.lat }
-        val maxLat = points.maxOf { it.lat }
-        val minLng = points.minOf { it.lng }
-        val maxLng = points.maxOf { it.lng }
-
-        val latRange = (maxLat - minLat).coerceAtLeast(1e-6)
-        val lngRange = (maxLng - minLng).coerceAtLeast(1e-6)
-        val padding = 64f
-
-        fun project(p: TrackPoint): Offset {
-            val nx = ((p.lng - minLng) / lngRange).toFloat()
-            val ny = 1f - ((p.lat - minLat) / latRange).toFloat()
-            return Offset(
-                x = padding + nx * (size.width - 2 * padding),
-                y = padding + ny * (size.height - 2 * padding)
-            )
-        }
-
-        val path = Path().apply {
-            val first = project(points.first())
-            moveTo(first.x, first.y)
-            for (i in 1 until points.size) {
-                val o = project(points[i])
-                lineTo(o.x, o.y)
-            }
-        }
-        drawPath(path = path, color = primary, style = Stroke(width = 8f))
-
-        // Start marker
-        drawCircle(color = Color(0xFF4CAF50), radius = 12f, center = project(points.first()))
-        // Current marker
-        drawCircle(color = primary, radius = 14f, center = project(points.last()))
-    }
-}
-
 @Composable
 fun RecordStatItem(value: String, label: String) {
     val colors = MaterialTheme.colorScheme
@@ -428,7 +346,7 @@ fun RecordStatItem(value: String, label: String) {
 }
 
 @Composable
-fun RecordMapActionButton(icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun RecordMapActionButton(icon: ImageVector, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Surface(
         shape = CircleShape,
@@ -436,7 +354,7 @@ fun RecordMapActionButton(icon: androidx.compose.ui.graphics.vector.ImageVector)
         modifier = Modifier.size(44.dp),
         shadowElevation = 4.dp
     ) {
-        IconButton(onClick = { }) {
+        IconButton(onClick = onClick) {
             Icon(icon, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(20.dp))
         }
     }

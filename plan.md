@@ -2,7 +2,7 @@
 
 > **Enerva** is an Android app for *social cardio* — track your runs, walks, and rides; capture them as reels; discover and follow other runners; chat; and keep each other moving. Inspired by Strava, built as a modern Android engineering showcase.
 
-- **Platform:** Android (min SDK 24, target SDK 36)
+- **Platform:** Android (min SDK 25, target SDK 36)
 - **Language:** Kotlin
 - **UI:** Jetpack Compose + Material 3 (single-Activity)
 - **Architecture:** MVVM + an **offline-first Repository layer**
@@ -66,12 +66,13 @@ A casual-to-intermediate runner who wants Strava-style tracking **plus** a light
 | Async | Coroutines + Flow | Structured concurrency; `Flow` bridges Room/Firestore → Compose state. |
 | Images | Coil (`AsyncImage`) | Lightweight Compose-native image loading (drawables + `content://` URIs). |
 | Location | Play Services Location (`FusedLocationProviderClient`) | Battery-efficient GPS for activity tracking. |
+| Maps | MapLibre Native via `ramani-maplibre` (Compose) + MapTiler/OpenFreeMap tiles | Free, no-credit-card vector map on the Record screen (Phase 4). OpenStreetMap data. |
 | Camera | CameraX | Activity media capture (wired in Phase 5). |
 | Networking | Retrofit + Moshi + OkHttp | Present for future REST integrations (e.g. Maps/places). |
 | Prefs | DataStore (Preferences) | One-time flags (e.g. demo-seed gate) and lightweight session prefs. |
 | Permissions | Accompanist Permissions | Compose-friendly runtime permission flow. |
 
-> **Note:** Retrofit/Moshi/OkHttp are wired but not yet exercised by a live API — reserved for Maps/places work in Phase 4.
+> **Note:** Retrofit/Moshi/OkHttp are wired but not yet exercised by a live API — reserved for future *places* work (route discovery, §10.2).
 
 ---
 
@@ -323,7 +324,7 @@ Firestore rules (`firestore.rules`, rules_version 2):
 
 ## 8. Roadmap & Phase History
 
-Each phase ends **buildable**. Phases 4 & 5 need credentials (Maps API key).
+Each phase ends **buildable**. Phase 4's map works with no credentials (keyless OpenFreeMap); Phase 5 needs Firebase Storage.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -331,8 +332,8 @@ Each phase ends **buildable**. Phases 4 & 5 need credentials (Maps API key).
 | 1 | Trim & restructure to 10 screens | ✅ Done |
 | 2 | Room (local persistence) | ✅ Done |
 | 3 | Firebase Auth + Cloud Firestore | ✅ Code-complete (rules deploy + on-device checkpoint pending) |
-| 4 | Google Maps API (real map) | 🚧 In progress — spec + implementation plan written (see below); coding not started |
-| 5 | Camera in Record screen | 🔜 Upcoming |
+| 4 | Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ Done — verified on-device (real GPS location renders on a physical phone); map works keyless via OpenFreeMap, optional `MAPTILER_API_KEY` (see docs/setupmaps.md) |
+| 5 | Camera in Record screen | 🔜 Next |
 
 ### Phase 3 sub-tracker (Firebase)
 
@@ -356,19 +357,20 @@ Each phase ends **buildable**. Phases 4 & 5 need credentials (Maps API key).
 > - **Cross-user feed scope:** owner-only rules forbid reading others' `users/{uid}/media`, so the public feed is served by the `publicReels` collection (not direct reads).
 > - **Image limitation:** `imageRes` (drawable id) and `imageUri` (`content://`) are device-local — synced reels carry text/stats across devices but **not the picture** until Phase 5 adds Firebase Storage.
 
-### Phase 4 — Google Maps (real map in Record)
+### Phase 4 — Real map in Record (MapLibre + MapTiler/OpenFreeMap) ✅ code-complete
 
-> **Status: 🚧 in progress.** Brainstormed design and a task-by-task implementation plan are written and committed (coding not yet started):
+> **Provider change:** originally drafted for Google Maps, but Google Maps Platform requires a
+> billing account with a **credit card** to mint a key. Switched to **MapLibre Native** (open-source)
+> with **MapTiler/OpenFreeMap** tiles — free, no card, OpenStreetMap-based, up-to-date.
 > - Spec: [`docs/superpowers/specs/2026-06-09-phase4-google-maps-design.md`](docs/superpowers/specs/2026-06-09-phase4-google-maps-design.md)
 > - Plan: [`docs/superpowers/plans/2026-06-09-phase4-google-maps.md`](docs/superpowers/plans/2026-06-09-phase4-google-maps.md)
-> - Key decisions locked: reuse the `local.properties` → manifest-placeholder pattern for `MAPS_API_KEY` (no secrets plugin); wire only the 3 map buttons; **remove** the inert search/filter bar.
+> - Setup: [`docs/setupmaps.md`](docs/setupmaps.md)
 
-1. Add `maps-compose` + `play-services-maps`.
-2. Maps API key via `local.properties` / secrets plugin (**never commit the key**).
-3. Replace the `Canvas` breadcrumb backdrop with a `GoogleMap` composable.
-4. Draw the live trail as a `Polyline` from `RecordViewModel.path`; add a current-location marker.
-5. Wire the currently-inert map action buttons (layers / 3D / recenter) and route filters.
-6. **Checkpoint:** live GPS path on a real map.
+- Added `org.ramani-maps:ramani-maplibre` (Compose wrapper over MapLibre Native). Bumped `minSdk` 24 → 25 (library requirement).
+- Key read from `local.properties` (`MAPTILER_API_KEY`) and exposed via `buildConfigField` (same pattern as `GOOGLE_WEB_CLIENT_ID`; no manifest meta-data, no secrets plugin). **Optional** — the map renders keyless via OpenFreeMap.
+- `TrailCanvas` replaced by a `MapLibre` composable; live trail drawn as a `Polyline`; current position + camera-follow via MapLibre's built-in location layer (replacing the manual `FusedLocationProviderClient` wiring, which now feeds the ViewModel from the map's location updates).
+- Buttons wired: **Layers** (cycle OpenFreeMap/MapTiler styles), **3D** (tilt 0↔45°), **Recenter**. The inert search/filter bar was removed.
+- **Checkpoint:** ✅ verified on a physical phone — the real-time GPS location renders on the live OpenFreeMap map (keyless). (Emulators show a fixed default location, so this needs a real device.)
 
 ### Phase 5 — Camera in Record
 1. Add `CAMERA` permission.
@@ -409,7 +411,7 @@ Two tracks: **quick wins** that are realistically shippable solo and raise polis
 |------|-------------|
 | **Empty states** | Every list (Gallery feed, Search, Messages, Profile grid) should show a friendly illustration + one-line prompt + CTA instead of blank space. (Home already does this for "No posts yet" — extend the pattern.) |
 | **Loading & error states** | Show skeletons/spinners while Room/Firestore hydrate, and a retry affordance on failure. Right now sync failures are largely silent. |
-| **Record screen honesty** | The map backdrop is a placeholder grid and the action buttons/filters are inert. Either ship Phase 4's real map or visibly mark these as "coming soon" so they don't feel broken. |
+| **Record screen honesty** | ✅ Phase 4 shipped a real MapLibre map with working Layers/3D/recenter buttons; the inert search/filter bar was removed. |
 | **Accessibility** | Add `contentDescription` to every meaningful icon, ensure 48dp minimum touch targets, and check colour contrast in the dark theme. |
 | **Feedback on actions** | Replace silent toasts-or-nothing with consistent feedback: snackbars for errors, subtle confirmation for follows/saves/posts. |
 | **Search UX** | Debounce input, show "no results" state, and make follow/message actions one tap with immediate optimistic feedback. |

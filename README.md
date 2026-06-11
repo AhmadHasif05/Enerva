@@ -58,8 +58,9 @@ Single-Activity Compose app with **5 bottom-nav tabs** (Home · Search · Record
 - **Async:** [Coroutines](https://kotlinlang.org/docs/coroutines-overview.html) & [Flow](https://kotlinlang.org/docs/flow.html)
 - **Images:** [Coil](https://coil-kt.github.io/coil/)
 - **Location:** Google Play Services Location (`FusedLocationProviderClient`)
+- **Maps:** [MapLibre](https://maplibre.org/) via [`ramani-maplibre`](https://github.com/ramani-maps/ramani-maps) + MapTiler/OpenFreeMap tiles *(free, no credit card — see [`setupmaps.md`](setupmaps.md))*
 - **Camera:** [CameraX](https://developer.android.com/training/camerax) *(media capture — Phase 5)*
-- **Networking:** [Retrofit](https://square.github.io/retrofit/) + [Moshi](https://github.com/square/moshi) *(reserved for Maps/places)*
+- **Networking:** [Retrofit](https://square.github.io/retrofit/) + [Moshi](https://github.com/square/moshi) *(reserved for future places/route discovery)*
 - **Prefs:** DataStore (Preferences)
 
 ---
@@ -84,7 +85,8 @@ This app needs Firebase config and (for Google Sign-In) a Web client ID:
 
 1. Place `google-services.json` in `app/` — see [`setupfirebase.md`](setupfirebase.md).
 2. For Google Sign-In, set `GOOGLE_WEB_CLIENT_ID=...` in `local.properties` (gitignored) — see [`setupfirebase-google-signin.md`](setupfirebase-google-signin.md).
-3. Build & run from Android Studio.
+3. *(Optional)* For richer map styles, set `MAPTILER_API_KEY=...` in `local.properties` — see [`setupmaps.md`](setupmaps.md). The map works keyless via OpenFreeMap without this.
+4. Build & run from Android Studio.
 
 ---
 
@@ -95,7 +97,7 @@ This app needs Firebase config and (for Google Sign-In) a Web client ID:
 | Screen trim → 10 screens | ✅ |
 | Room (local persistence) | ✅ |
 | Firebase Auth + Firestore | ✅ (rules deploy + checkpoint pending) |
-| Google Maps (real map in Record) | 🔜 |
+| Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ (verified on-device) |
 | Camera capture → reels (CameraX + Storage) | 🔜 |
 
 ---
