@@ -1,7 +1,10 @@
 package com.example.a211198_hasif_drnelson_Project2.view.screen
 
 import android.Manifest
+import android.graphics.Bitmap
 import android.location.Location
+import androidx.compose.ui.platform.LocalContext
+import org.maplibre.android.snapshotter.MapSnapshotter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -70,6 +73,11 @@ fun RecordScreen(
     val startCenter = rememberSaveable(saver = CenterState.Saver) { CenterState(LatLng(0.0, 0.0)) }
     var tilted by remember { mutableStateOf(false) }
     var statsExpanded by rememberSaveable { mutableStateOf(true) }
+    val context = LocalContext.current
+    var showSummary by remember { mutableStateOf(false) }
+    var snapshot by remember { mutableStateOf<Bitmap?>(null) }
+    var snapshotLoading by remember { mutableStateOf(false) }
+    var snapshotter by remember { mutableStateOf<MapSnapshotter?>(null) }
 
     // Available map styles for the Layers button. OpenFreeMap needs no key (so the map
     // always renders); a MapTiler key (local.properties) unlocks the extra styles.
@@ -287,6 +295,34 @@ fun RecordScreen(
             }
         }
 
+        if (showSummary) {
+            RunSummarySheet(
+                snapshot = snapshot,
+                snapshotLoading = snapshotLoading,
+                timeText = formatElapsed(recordViewModel.elapsedSeconds),
+                distanceText = "%.2f".format(recordViewModel.distanceKm),
+                paceText = formatPace(recordViewModel.elapsedSeconds, recordViewModel.distanceKm),
+                onPost = { caption, includePhoto ->
+                    val uri = if (includePhoto && snapshot != null) {
+                        saveBitmapToInternalStorage(context, snapshot!!)
+                    } else null
+                    recordViewModel.saveActivity(type = "Walk", caption = caption, imageUri = uri)
+                    snapshotter?.cancel()
+                    snapshotter = null
+                    showSummary = false
+                    snapshot = null
+                    recordViewModel.reset()
+                },
+                onDiscard = {
+                    snapshotter?.cancel()
+                    snapshotter = null
+                    showSummary = false
+                    snapshot = null
+                    recordViewModel.reset()
+                }
+            )
+        }
+
         // --- Bottom control bar ---
         Surface(
             modifier = Modifier
@@ -366,11 +402,27 @@ fun RecordScreen(
                             color = colors.surfaceVariant,
                             modifier = Modifier.size(56.dp)
                         ) {
-                            IconButton(onClick = { recordViewModel.reset() }) {
-                                Icon(Icons.Default.Stop, contentDescription = "Stop", tint = colors.onSurface)
+                            IconButton(
+                                onClick = {
+                                    recordViewModel.pause()
+                                    showSummary = true
+                                    snapshotLoading = true
+                                    snapshot = null
+                                    snapshotter = captureRouteSnapshot(
+                                        context = context,
+                                        points = recordViewModel.path,
+                                        styleUrl = styleUrls[styleIndex],
+                                        colorHex = trailColorHex,
+                                    ) { bmp ->
+                                        snapshot = bmp
+                                        snapshotLoading = false
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Flag, contentDescription = "End", tint = colors.onSurface)
                             }
                         }
-                        Text("Stop", color = colors.onSurface, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text("End", color = colors.onSurface, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
             }
