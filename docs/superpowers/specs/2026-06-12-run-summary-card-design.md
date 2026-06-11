@@ -46,6 +46,22 @@ does **not** add CameraX/photo capture or Firebase Storage (still future work).
 4. Keep the existing sheet controls (caption, include-photo toggle,
    Post/Discard) and the existing `saveActivity(caption, imageUri)` flow.
 
+### 5. Activity-type toggle (Walk ↔ Run/Jog) — added scope
+
+Today the activity-type chip in the Record bottom bar (`RecordScreen.kt`, the
+`DirectionsWalk` circle + "Walk" label) is decorative: it has no `onClick`, the
+stats-card header is a hardcoded "Walk", and Post calls
+`saveActivity(type = "Walk", …)`. The type can never actually be chosen.
+
+- Hold the selected type in `RecordViewModel` (e.g. `activityType: String` with
+  values `"Walk"` / `"Run"`, default `"Run"` to match `saveActivity`'s default;
+  "Jog" is treated as Run).
+- Make the chip a real toggle: tapping it cycles Walk ↔ Run, swapping the icon
+  (`DirectionsWalk` ↔ `DirectionsRun`) and the label.
+- Drive the stats-card header label and the `saveActivity(type = …)` call from
+  that state instead of the literal `"Walk"`. Optionally surface the type on the
+  summary card.
+
 ## Non-Goals
 
 CameraX capture, Firebase Storage upload, gallery-side UI changes, DB schema
@@ -126,7 +142,9 @@ colour list:
 - `view/screen/RunSummaryCard.kt` — **new** branded card composable.
 - `view/screen/RunSummarySheet.kt` — use the card; capture-to-bitmap on Post.
 - `view/screen/RecordScreen.kt` — pass per-vertex pace colours into the snapshot
-  call (it already owns the points + style + snapshot trigger).
+  call (it already owns the points + style + snapshot trigger); wire the
+  activity-type toggle (chip onClick, header label, `saveActivity(type = …)`).
+- `view_model/RecordViewModel.kt` — hold `activityType` state for the toggle.
 
 No DB migration, no new dependencies, no gallery-side changes.
 
