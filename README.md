@@ -98,6 +98,7 @@ This app needs Firebase config and (for Google Sign-In) a Web client ID:
 | Room (local persistence) | ✅ |
 | Firebase Auth + Firestore | ✅ (rules deploy + checkpoint pending) |
 | Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ (verified on-device) |
+| Record screen polish (clean route, pace, End → post reel) | ✅ |
 | Camera capture → reels (CameraX + Storage) | 🔜 |
 
 ---
