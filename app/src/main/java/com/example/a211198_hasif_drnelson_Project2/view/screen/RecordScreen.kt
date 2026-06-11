@@ -30,6 +30,7 @@ import com.example.a211198_hasif_drnelson_Project2.BuildConfig
 import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.view_model.formatElapsed
+import com.example.a211198_hasif_drnelson_Project2.view_model.formatPace
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -94,8 +95,8 @@ fun RecordScreen(
     LaunchedEffect(userLocation.value) {
         val loc = userLocation.value
         if (recordViewModel.isRecording && (loc.latitude != 0.0 || loc.longitude != 0.0)) {
-            val speed: Float? = if (loc.hasSpeed()) loc.speed else null
-            recordViewModel.onLocation(loc.latitude, loc.longitude, speed, loc.time)
+            val accuracy: Float? = if (loc.hasAccuracy()) loc.accuracy else null
+            recordViewModel.onLocation(loc.latitude, loc.longitude, accuracy, loc.time)
         }
     }
 
@@ -123,7 +124,7 @@ fun RecordScreen(
         ) {
             val trail = recordViewModel.path.map { LatLng(it.lat, it.lng) }
             if (trail.size >= 2) {
-                Polyline(points = trail, color = trailColorHex, lineWidth = 5f)
+                Polyline(points = trail, color = trailColorHex, lineWidth = 8f)
             }
             if (trail.isNotEmpty()) {
                 Circle(
@@ -240,7 +241,10 @@ fun RecordScreen(
                 ) {
                     RecordStatItem(formatElapsed(recordViewModel.elapsedSeconds), "Time")
                     RecordStatItem("%.2f".format(recordViewModel.distanceKm), "Distance (km)")
-                    RecordStatItem("%.1f".format(recordViewModel.currentSpeedKmh), "Speed (km/h)")
+                    RecordStatItem(
+                        formatPace(recordViewModel.elapsedSeconds, recordViewModel.distanceKm),
+                        "Pace (/km)"
+                    )
                 }
             }
         }
