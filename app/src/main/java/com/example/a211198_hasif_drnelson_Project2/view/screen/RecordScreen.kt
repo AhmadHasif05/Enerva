@@ -34,6 +34,7 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.RecordViewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.view_model.formatElapsed
 import com.example.a211198_hasif_drnelson_Project2.view_model.formatPace
+import com.example.a211198_hasif_drnelson_Project2.view_model.paceSegmentColors
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -239,7 +240,7 @@ fun RecordScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Spacer(modifier = Modifier.width(24.dp))
-                        Text("Walk", color = colors.onSurface, fontWeight = FontWeight.Bold)
+                        Text(recordViewModel.activityType, color = colors.onSurface, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { statsExpanded = false }) {
                             Icon(
                                 Icons.Default.CloseFullscreen,
@@ -302,11 +303,13 @@ fun RecordScreen(
                 timeText = formatElapsed(recordViewModel.elapsedSeconds),
                 distanceText = "%.2f".format(recordViewModel.distanceKm),
                 paceText = formatPace(recordViewModel.elapsedSeconds, recordViewModel.distanceKm),
-                onPost = { caption, includePhoto ->
-                    val uri = if (includePhoto && snapshot != null) {
-                        saveBitmapToInternalStorage(context, snapshot!!)
-                    } else null
-                    recordViewModel.saveActivity(type = "Walk", caption = caption, imageUri = uri)
+                onPost = { caption, cardBitmap ->
+                    val uri = cardBitmap?.let { saveBitmapToInternalStorage(context, it) }
+                    recordViewModel.saveActivity(
+                        type = recordViewModel.activityType,
+                        caption = caption,
+                        imageUri = uri,
+                    )
                     snapshotter?.cancel()
                     snapshotter = null
                     showSummary = false
@@ -353,21 +356,26 @@ fun RecordScreen(
                         Surface(
                             shape = CircleShape,
                             color = colors.primary.copy(alpha = 0.2f),
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier.size(56.dp),
+                            onClick = { recordViewModel.toggleActivityType() }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.AutoMirrored.Filled.DirectionsWalk, contentDescription = null, tint = colors.primary)
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .align(Alignment.TopEnd)
-                                        .padding(2.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.primary)
+                                Icon(
+                                    if (recordViewModel.activityType == "Run")
+                                        Icons.AutoMirrored.Filled.DirectionsRun
+                                    else
+                                        Icons.AutoMirrored.Filled.DirectionsWalk,
+                                    contentDescription = "Activity type: ${recordViewModel.activityType}",
+                                    tint = colors.primary
                                 )
                             }
                         }
-                        Text("Walk", color = colors.onSurface, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text(
+                            recordViewModel.activityType,
+                            color = colors.onSurface,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
                     }
 
                     // Start / Pause toggle
@@ -413,6 +421,7 @@ fun RecordScreen(
                                         points = recordViewModel.path,
                                         styleUrl = styleUrls[styleIndex],
                                         colorHex = trailColorHex,
+                                        segmentColors = paceSegmentColors(recordViewModel.path),
                                     ) { bmp ->
                                         snapshot = bmp
                                         snapshotLoading = false
