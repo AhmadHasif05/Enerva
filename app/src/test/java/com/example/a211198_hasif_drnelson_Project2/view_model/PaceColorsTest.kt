@@ -59,5 +59,7 @@ class PaceColorsTest {
         )
         val colors = paceSegmentColors(points)
         assertEquals(2, colors.size) // produced a colour per segment, no exception
+        // All segments have non-positive dt → no valid speeds → brand fallback.
+        assertTrue(colors.all { it == "#FC4C02" })
     }
 }

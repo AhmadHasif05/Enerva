@@ -56,7 +56,9 @@ fun paceSegmentColors(points: List<TrackPoint>): List<String> {
     }
 
     return speeds.map { s ->
-        if (s == null) paceColorAt(0.5)
+        // A clock-glitch segment (non-positive dt) has no trustworthy speed, so
+        // colour it with the brand fallback rather than an arbitrary mid-ramp value.
+        if (s == null) BRAND_HEX
         else paceColorAt((maxS - s) / (maxS - minS)) // fastest→0(green), slowest→1(red)
     }
 }
