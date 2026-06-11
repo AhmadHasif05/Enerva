@@ -23,6 +23,10 @@ import org.maplibre.geojson.Point
 import java.io.File
 import java.io.FileOutputStream
 
+// Endpoint marker colours (MapLibre hex; never cross into Compose theme).
+private const val COLOR_START_HEX = "#2E7D32"  // Material Green 800
+private const val COLOR_FINISH_HEX = "#C62828" // Material Red 800
+
 // Render the recorded route over the basemap into a Bitmap, off-screen.
 // onResult is called on the main thread with the bitmap, or null on failure /
 // too few points. colorHex is the fallback single-colour trail ("#RRGGBB").
@@ -82,8 +86,8 @@ fun captureRouteSnapshot(
         PropertyFactory.circleColor(
             Expression.match(
                 Expression.get("role"),
-                Expression.literal("start"), Expression.color(AndroidColor.parseColor("#2E7D32")),
-                Expression.literal("finish"), Expression.color(AndroidColor.parseColor("#C62828")),
+                Expression.literal("start"), Expression.color(AndroidColor.parseColor(COLOR_START_HEX)),
+                Expression.literal("finish"), Expression.color(AndroidColor.parseColor(COLOR_FINISH_HEX)),
                 Expression.color(AndroidColor.parseColor(colorHex)),
             )
         ),
