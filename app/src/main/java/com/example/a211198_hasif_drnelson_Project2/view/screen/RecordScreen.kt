@@ -63,7 +63,7 @@ fun RecordScreen(
 
     // --- Map view-state (no ViewModel involvement) ---
     // The map's built-in location layer reports the latest fix here; we forward it to
-    // the ViewModel (which computes distance/speed and grows the breadcrumb path).
+    // the ViewModel (which computes distance/pace and grows the breadcrumb path).
     val userLocation = remember { mutableStateOf(Location(null)) }
     val cameraMode = remember { mutableIntStateOf(CameraMode.NONE) }
     val cameraPositionState = rememberCameraPositionState(CameraPosition(zoom = 16.0))
