@@ -69,6 +69,7 @@ fun RecordScreen(
     val cameraPositionState = rememberCameraPositionState(CameraPosition(zoom = 16.0))
     val startCenter = rememberSaveable(saver = CenterState.Saver) { CenterState(LatLng(0.0, 0.0)) }
     var tilted by remember { mutableStateOf(false) }
+    var statsExpanded by rememberSaveable { mutableStateOf(true) }
 
     // Available map styles for the Layers button. OpenFreeMap needs no key (so the map
     // always renders); a MapTiler key (local.properties) unlocks the extra styles.
@@ -210,40 +211,80 @@ fun RecordScreen(
             Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = colors.onSurface, modifier = Modifier.size(20.dp))
         }
 
-        // --- Live stats card ---
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(start = 16.dp, end = 16.dp, bottom = 170.dp)
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = colors.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        // --- Live stats card (collapsible so it never hides the map buttons) ---
+        if (statsExpanded) {
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 170.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.width(24.dp))
+                        Text("Walk", color = colors.onSurface, fontWeight = FontWeight.Bold)
+                        IconButton(
+                            onClick = { statsExpanded = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CloseFullscreen,
+                                contentDescription = "Minimize stats",
+                                tint = colors.onSurface,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        RecordStatItem(formatElapsed(recordViewModel.elapsedSeconds), "Time")
+                        RecordStatItem("%.2f".format(recordViewModel.distanceKm), "Distance (km)")
+                        RecordStatItem(
+                            formatPace(recordViewModel.elapsedSeconds, recordViewModel.distanceKm),
+                            "Pace (/km)"
+                        )
+                    }
+                }
+            }
+        } else {
+            Surface(
+                onClick = { statsExpanded = true },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 170.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = colors.surface,
+                shadowElevation = 4.dp
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Spacer(modifier = Modifier.width(24.dp))
-                    Text("Walk", color = colors.onSurface, fontWeight = FontWeight.Bold)
-                    Icon(Icons.Default.OpenInFull, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(16.dp))
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    RecordStatItem(formatElapsed(recordViewModel.elapsedSeconds), "Time")
-                    RecordStatItem("%.2f".format(recordViewModel.distanceKm), "Distance (km)")
-                    RecordStatItem(
-                        formatPace(recordViewModel.elapsedSeconds, recordViewModel.distanceKm),
-                        "Pace (/km)"
+                    Text(
+                        formatElapsed(recordViewModel.elapsedSeconds),
+                        color = colors.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        Icons.Default.OpenInFull,
+                        contentDescription = "Expand stats",
+                        tint = colors.onSurface,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
