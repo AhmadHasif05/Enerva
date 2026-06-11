@@ -232,10 +232,7 @@ fun RecordScreen(
                     ) {
                         Spacer(modifier = Modifier.width(24.dp))
                         Text("Walk", color = colors.onSurface, fontWeight = FontWeight.Bold)
-                        IconButton(
-                            onClick = { statsExpanded = false },
-                            modifier = Modifier.size(24.dp)
-                        ) {
+                        IconButton(onClick = { statsExpanded = false }) {
                             Icon(
                                 Icons.Default.CloseFullscreen,
                                 contentDescription = "Minimize stats",
