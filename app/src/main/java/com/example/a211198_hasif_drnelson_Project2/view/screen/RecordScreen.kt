@@ -304,9 +304,10 @@ fun RecordScreen(
                 distanceText = "%.2f".format(recordViewModel.distanceKm),
                 paceText = formatPace(recordViewModel.elapsedSeconds, recordViewModel.distanceKm),
                 onPost = { caption, cardBitmap ->
+                    val runType = recordViewModel.activityType
                     val uri = cardBitmap?.let { saveBitmapToInternalStorage(context, it) }
                     recordViewModel.saveActivity(
-                        type = recordViewModel.activityType,
+                        type = runType,
                         caption = caption,
                         imageUri = uri,
                     )
@@ -355,9 +356,12 @@ fun RecordScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Surface(
                             shape = CircleShape,
-                            color = colors.primary.copy(alpha = 0.2f),
+                            color = colors.primary.copy(alpha = if (recordViewModel.hasStarted) 0.1f else 0.2f),
                             modifier = Modifier.size(56.dp),
-                            onClick = { recordViewModel.toggleActivityType() }
+                            onClick = {
+                                // Lock the activity type once the run is underway.
+                                if (!recordViewModel.hasStarted) recordViewModel.toggleActivityType()
+                            }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -365,7 +369,10 @@ fun RecordScreen(
                                         Icons.AutoMirrored.Filled.DirectionsRun
                                     else
                                         Icons.AutoMirrored.Filled.DirectionsWalk,
-                                    contentDescription = "Activity type: ${recordViewModel.activityType}",
+                                    contentDescription = if (recordViewModel.activityType == "Run")
+                                        "Activity type: Run, tap to switch to Walk"
+                                    else
+                                        "Activity type: Walk, tap to switch to Run",
                                     tint = colors.primary
                                 )
                             }

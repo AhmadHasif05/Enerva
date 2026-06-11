@@ -56,6 +56,10 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
         activityType = if (activityType == "Run") "Walk" else "Run"
     }
 
+    // True once a run is underway (timer running or any GPS point captured). Used
+    // to lock the activity-type choice after recording starts.
+    val hasStarted: Boolean get() = elapsedSeconds > 0L || path.isNotEmpty()
+
     // Compose-observable breadcrumb — RecordScreen draws this as a Polyline.
     val path: MutableList<TrackPoint> = mutableStateListOf()
 
