@@ -29,6 +29,7 @@ import java.util.UUID
 class RecordViewModel(application: Application) : AndroidViewModel(application) {
 
     private val activityDao = AppDatabase.get(application).activityDao()
+    private val userDao = AppDatabase.get(application).userDao()
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
 
     // Pure GPS logic; the observable state below mirrors its kept points.
@@ -113,16 +114,18 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
             elapsedSeconds = elapsedSeconds,
             dateStr = dateStr,
         )
-        val media = buildRunMedia(
-            id = UUID.randomUUID().toString(),
-            ownerEmail = email,
-            caption = caption,
-            type = type,
-            distanceKm = distanceKm,
-            imageUri = imageUri,
-            createdAtMs = now,
-        )
         viewModelScope.launch {
+            val author = userDao.findByEmail(email)?.runnerName ?: "You"
+            val media = buildRunMedia(
+                id = UUID.randomUUID().toString(),
+                ownerEmail = email,
+                author = author,
+                caption = caption,
+                type = type,
+                distanceKm = distanceKm,
+                imageUri = imageUri,
+                createdAtMs = now,
+            )
             activityDao.insertActivity(record)
             activityDao.insertMedia(media)
         }

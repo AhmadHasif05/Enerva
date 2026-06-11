@@ -21,6 +21,7 @@ fun formatPace(elapsedSeconds: Long, distanceKm: Double): String {
 fun buildRunMedia(
     id: String,
     ownerEmail: String,
+    author: String,
     caption: String,
     type: String,
     distanceKm: Double,
@@ -29,7 +30,7 @@ fun buildRunMedia(
 ): MediaEntity = MediaEntity(
     id = id,
     ownerEmail = ownerEmail,
-    author = "You",
+    author = author,
     caption = caption,
     activity = type,
     distanceKm = "%.1f".format(distanceKm),

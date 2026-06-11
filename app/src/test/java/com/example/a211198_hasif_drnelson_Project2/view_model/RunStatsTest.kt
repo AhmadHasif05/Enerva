@@ -27,6 +27,7 @@ class RunStatsTest {
         val media = buildRunMedia(
             id = "m1",
             ownerEmail = "me@example.com",
+            author = "Hasif",
             caption = "Evening loop",
             type = "Walk",
             distanceKm = 2.345,
@@ -35,7 +36,7 @@ class RunStatsTest {
         )
         assertEquals("m1", media.id)
         assertEquals("me@example.com", media.ownerEmail)
-        assertEquals("You", media.author)
+        assertEquals("Hasif", media.author)
         assertEquals("Evening loop", media.caption)
         assertEquals("Walk", media.activity)
         assertEquals("2.3", media.distanceKm)
@@ -49,6 +50,7 @@ class RunStatsTest {
         val media = buildRunMedia(
             id = "m2",
             ownerEmail = "me@example.com",
+            author = "Hasif",
             caption = "No photo",
             type = "Run",
             distanceKm = 1.0,
