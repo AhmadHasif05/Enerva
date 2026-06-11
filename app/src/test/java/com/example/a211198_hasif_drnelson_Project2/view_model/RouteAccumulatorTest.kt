@@ -52,6 +52,17 @@ class RouteAccumulatorTest {
     }
 
     @Test
+    fun `null accuracy still hits the jitter gate on a later fix`() {
+        val acc = RouteAccumulator()
+        acc.addFix(1.0, 103.0, accuracyM = null, timeMs = 0L)
+        // Second fix has null accuracy but barely moves — jitter gate must reject it.
+        val kept = acc.addFix(1.000001, 103.0, accuracyM = null, timeMs = 1000L)
+        assertFalse(kept)
+        assertEquals(1, acc.points.size)
+        assertEquals(0.0, acc.distanceKm, 1e-9)
+    }
+
+    @Test
     fun `reset clears points and distance`() {
         val acc = RouteAccumulator()
         acc.addFix(1.0, 103.0, accuracyM = 5f, timeMs = 0L)
