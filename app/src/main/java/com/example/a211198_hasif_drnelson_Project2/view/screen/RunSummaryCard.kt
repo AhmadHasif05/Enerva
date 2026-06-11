@@ -155,7 +155,7 @@ private fun PaceLegend(modifier: Modifier = Modifier) {
                 .background(
                     // Mirrors the pace ramp stops in PaceColors.kt (fast→slow).
                     Brush.horizontalGradient(
-                        listOf(Color(0xFF4CAF50), Color(0xFFFFC107), Color(0xFFFC4C02))
+                        listOf(Color(0xFF4CAF50), Color(0xFFFFC107), Color(0xFFFF7043), Color(0xFFFC4C02))
                     )
                 )
         )
