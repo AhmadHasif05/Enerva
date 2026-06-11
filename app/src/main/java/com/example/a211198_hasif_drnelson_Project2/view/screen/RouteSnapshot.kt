@@ -19,6 +19,8 @@ import java.io.FileOutputStream
 // Render the recorded route over the basemap into a Bitmap, off-screen.
 // onResult is called on the main thread with the bitmap, or null on failure /
 // too few points. colorHex is a "#RRGGBB" string (the trail colour).
+// Returns the MapSnapshotter so the caller can call .cancel() if the screen is
+// dismissed before the callback fires; the caller owns the snapshotter lifecycle.
 fun captureRouteSnapshot(
     context: Context,
     points: List<TrackPoint>,
@@ -27,10 +29,10 @@ fun captureRouteSnapshot(
     widthPx: Int = 1000,
     heightPx: Int = 1000,
     onResult: (Bitmap?) -> Unit,
-) {
+): MapSnapshotter? {
     if (points.size < 2) {
         onResult(null)
-        return
+        return null
     }
 
     val latLngs = points.map { LatLng(it.lat, it.lng) }
@@ -57,8 +59,9 @@ fun captureRouteSnapshot(
     val snapshotter = MapSnapshotter(context, options)
     snapshotter.start(
         { snapshot -> onResult(snapshot.bitmap) },
-        { _ -> onResult(null) },
+        { error -> android.util.Log.w("RouteSnapshot", "snapshot failed: $error"); onResult(null) },
     )
+    return snapshotter
 }
 
 // Write a bitmap to internal storage and return its absolute path. Coil renders
