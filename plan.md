@@ -380,6 +380,13 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 5. Captured media appears in Gallery reels.
 6. **Checkpoint:** capture from Record → appears in Gallery on another device.
 
+> **P5 polish (shipped first):** End → branded **ENERVA** run-summary card — pace-coloured
+> route (green=fast … red=slow) + START/FINISH markers + icon stats footer, captured to
+> the posted reel image so the feed shows the branded card; the Record activity-type chip
+> is now a working **Walk↔Run** toggle (locked once a run is underway).
+> Spec: [`docs/superpowers/specs/2026-06-12-run-summary-card-design.md`](docs/superpowers/specs/2026-06-12-run-summary-card-design.md) ·
+> Plan: [`docs/superpowers/plans/2026-06-12-run-summary-card.md`](docs/superpowers/plans/2026-06-12-run-summary-card.md)
+
 ---
 
 ## 9. Code-Quality & Refactor Backlog
