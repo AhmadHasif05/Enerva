@@ -66,7 +66,8 @@ class GalleryRepository(
         activity: String,
         distanceKm: String,
         imageUri: String?,
-        imageRes: Int
+        imageRes: Int,
+        isCard: Boolean = false
     ) {
         if (email.isBlank()) return
         val user = userDao.findByEmail(email)
@@ -84,7 +85,8 @@ class GalleryRepository(
             imageRes = imageRes,
             imageUri = imageUri,
             likes = 0,
-            createdAtMs = now
+            createdAtMs = now,
+            isCard = isCard
         )
         activityDao.insertMedia(entity)
 

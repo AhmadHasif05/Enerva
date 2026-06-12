@@ -41,6 +41,9 @@ fun RunSummaryCard(
     paceText: String,
     modifier: Modifier = Modifier,
     captureLayer: GraphicsLayer? = null,
+    // True when `snapshot` is a user-taken photo rather than the route map: the
+    // pace legend is meaningless on a photo, so it's hidden.
+    isPhoto: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
 
@@ -87,13 +90,13 @@ fun RunSummaryCard(
                 snapshotLoading -> CircularProgressIndicator()
                 snapshot != null -> Image(
                     bitmap = snapshot.asImageBitmap(),
-                    contentDescription = "Route map",
+                    contentDescription = if (isPhoto) "Run photo" else "Route map",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
                 else -> Text("No route image", color = colors.onSurfaceVariant)
             }
-            if (snapshot != null) {
+            if (snapshot != null && !isPhoto) {
                 PaceLegend(modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
             }
         }

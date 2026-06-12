@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Temp folder the camera writes full-res run photos into, shared with the
+         camera app via FileProvider (authority ${applicationId}.fileprovider). -->
+    <cache-path name="runs_camera" path="runs_camera/" />
+</paths>

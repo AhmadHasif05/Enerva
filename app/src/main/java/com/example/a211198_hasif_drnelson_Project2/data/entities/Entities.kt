@@ -112,5 +112,10 @@ data class MediaEntity(
     val imageRes: Int,
     val imageUri: String?, // null for seeded reels using imageRes; set for user posts
     val likes: Int,
-    val createdAtMs: Long
+    val createdAtMs: Long,
+    // True when imageUri is a branded run-summary card (≈square) the reel renderer
+    // should Fit rather than Crop. Defaults false: seeded/demo/remote reels and
+    // raw photo posts are full-bleed. Device-local (not synced to Firestore — the
+    // card image itself doesn't sync, so remote copies stay drawable-backed Crop).
+    val isCard: Boolean = false
 )

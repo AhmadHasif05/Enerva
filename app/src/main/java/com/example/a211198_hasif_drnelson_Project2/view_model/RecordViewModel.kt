@@ -113,8 +113,13 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
 
     // Persist the current run to Room: an ActivityRecord plus a gallery reel.
     // imageUri is the route-snapshot path, or null for a stats-only post.
-    fun saveActivity(type: String = "Run", caption: String = "New run", imageUri: String? = null) {
-        if (elapsedSeconds == 0L && distanceKm == 0.0) return
+    fun saveActivity(
+        type: String = "Run",
+        caption: String = "New run",
+        imageUri: String? = null,
+        isCard: Boolean = false,
+    ) {
+        if (!shouldSaveRun(elapsedSeconds, distanceKm, imageUri != null)) return
         val email = prefs.getString("activeEmail", null).orEmpty()
         if (email.isBlank()) return
         val now = System.currentTimeMillis()
@@ -139,6 +144,7 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
                 distanceKm = distanceKm,
                 imageUri = imageUri,
                 createdAtMs = now,
+                isCard = isCard,
             )
             activityDao.insertActivity(record)
             activityDao.insertMedia(media)

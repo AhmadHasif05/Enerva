@@ -20,7 +20,11 @@ data class GalleryActivity(
     val tint: Long,
     val imageRes: Int,
     val imageUri: String? = null, // user-picked photo (URI string); null falls back to imageRes
-    val likes: Int = 0
+    val likes: Int = 0,
+    // True when imageUri is a branded run-summary card (≈square) rather than a
+    // full-bleed photo. The reel renderer fits cards (whole frame visible) and
+    // crops photos (full-bleed). See docs/.../reel-card-fit.md.
+    val isCard: Boolean = false
 )
 
 // Sample feed used across Home, Gallery and Profile. The first entry is the

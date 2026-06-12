@@ -1,10 +1,29 @@
 package com.example.a211198_hasif_drnelson_Project2.view_model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RunStatsTest {
+
+    @Test
+    fun `a run with time or distance is saved`() {
+        assertTrue(shouldSaveRun(elapsedSeconds = 5, distanceKm = 0.0, hasImage = false))
+        assertTrue(shouldSaveRun(elapsedSeconds = 0, distanceKm = 1.2, hasImage = false))
+    }
+
+    @Test
+    fun `a photo-only post with no movement is still saved`() {
+        // The no-movement case: 0 time, 0 distance, but the user attached a photo.
+        assertTrue(shouldSaveRun(elapsedSeconds = 0, distanceKm = 0.0, hasImage = true))
+    }
+
+    @Test
+    fun `a completely empty post is not saved`() {
+        assertFalse(shouldSaveRun(elapsedSeconds = 0, distanceKm = 0.0, hasImage = false))
+    }
 
     @Test
     fun `pace formats minutes and seconds per km`() {

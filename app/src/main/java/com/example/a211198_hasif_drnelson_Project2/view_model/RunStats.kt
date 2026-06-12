@@ -16,6 +16,13 @@ fun formatPace(elapsedSeconds: Long, distanceKm: Double): String {
     return "%d:%02d".format(m, s)
 }
 
+// A run is worth saving if it captured anything at all: elapsed time, distance,
+// or an image the user chose to post. The image clause is what lets a no-movement
+// photo post (0 time, 0 distance) survive — without it such posts were silently
+// dropped before reaching Room, so they never showed in the gallery.
+fun shouldSaveRun(elapsedSeconds: Long, distanceKm: Double, hasImage: Boolean): Boolean =
+    elapsedSeconds > 0L || distanceKm > 0.0 || hasImage
+
 // Build the gallery reel for a finished run. imageUri is the route snapshot path
 // (or null for a stats-only post, which falls back to the drawable in the UI).
 fun buildRunMedia(
@@ -27,6 +34,7 @@ fun buildRunMedia(
     distanceKm: Double,
     imageUri: String?,
     createdAtMs: Long,
+    isCard: Boolean = false,
 ): MediaEntity = MediaEntity(
     id = id,
     ownerEmail = ownerEmail,
@@ -39,6 +47,7 @@ fun buildRunMedia(
     imageUri = imageUri,
     likes = 0,
     createdAtMs = createdAtMs,
+    isCard = isCard,
 )
 
 // Build the activity-history record for a finished run.

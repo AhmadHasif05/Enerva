@@ -101,6 +101,21 @@ fun RecordScreen(
         String.format("#%06X", 0xFFFFFF and colors.primary.toArgb())
     }
 
+    // Center the camera on the user once, when the first valid GPS fix arrives.
+    // After this the camera stays put (no follow) until recording starts, so the
+    // user can pan around freely before pressing Start.
+    var hasCenteredOnUser by remember { mutableStateOf(false) }
+    LaunchedEffect(userLocation.value) {
+        val loc = userLocation.value
+        if (!hasCenteredOnUser && (loc.latitude != 0.0 || loc.longitude != 0.0)) {
+            cameraPositionState.position = cameraPositionState.position.copy(
+                target = LatLng(loc.latitude, loc.longitude),
+                zoom = 16.0
+            )
+            hasCenteredOnUser = true
+        }
+    }
+
     // Forward each valid fix to the ViewModel while recording.
     LaunchedEffect(userLocation.value) {
         val loc = userLocation.value
@@ -310,6 +325,10 @@ fun RecordScreen(
                         type = runType,
                         caption = caption,
                         imageUri = uri,
+                        // The post is a branded card only when we actually captured
+                        // one; a stats-only run (no bitmap) falls back to the
+                        // full-bleed drawable, which should stay Crop.
+                        isCard = uri != null,
                     )
                     snapshotter?.cancel()
                     snapshotter = null

@@ -29,7 +29,7 @@ import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
         MediaEntity::class,
         UserDirectoryEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

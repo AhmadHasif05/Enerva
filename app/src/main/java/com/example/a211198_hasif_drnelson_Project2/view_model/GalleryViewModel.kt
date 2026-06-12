@@ -208,5 +208,6 @@ private fun MediaEntity.toModel() = GalleryActivity(
     tint = tint,
     imageRes = imageRes,
     imageUri = imageUri,
-    likes = likes
+    likes = likes,
+    isCard = isCard
 )

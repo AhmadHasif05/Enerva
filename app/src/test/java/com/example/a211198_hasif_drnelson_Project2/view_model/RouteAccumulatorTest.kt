@@ -17,11 +17,20 @@ class RouteAccumulatorTest {
     }
 
     @Test
-    fun `a fix worse than the accuracy gate is rejected`() {
+    fun `first fix is kept even when accuracy is worse than the gate`() {
         val acc = RouteAccumulator(minAccuracyM = 25f)
         val kept = acc.addFix(1.0, 103.0, accuracyM = 40f, timeMs = 0L)
+        assertTrue(kept)
+        assertEquals(1, acc.points.size)
+    }
+
+    @Test
+    fun `a later fix worse than the accuracy gate is rejected`() {
+        val acc = RouteAccumulator(minAccuracyM = 25f)
+        acc.addFix(1.0, 103.0, accuracyM = 5f, timeMs = 0L)
+        val kept = acc.addFix(1.001, 103.0, accuracyM = 40f, timeMs = 1000L)
         assertFalse(kept)
-        assertEquals(0, acc.points.size)
+        assertEquals(1, acc.points.size)
     }
 
     @Test

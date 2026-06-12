@@ -2,7 +2,10 @@ package com.example.a211198_hasif_drnelson_Project2.view.screen
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
+import android.net.Uri
+import androidx.core.content.FileProvider
 import com.example.a211198_hasif_drnelson_Project2.view_model.TrackPoint
 import com.example.a211198_hasif_drnelson_Project2.view_model.haversineKm
 import org.maplibre.android.geometry.LatLng
@@ -145,6 +148,32 @@ private fun buildPaceGradient(points: List<TrackPoint>, segmentColors: List<Stri
         Expression.lineProgress(),
         *stops.toTypedArray()
     )
+}
+
+// Create an empty temp file in cache/runs_camera and return both the file and a
+// FileProvider content:// Uri the camera app can write into. Authority must match
+// the <provider> in AndroidManifest.xml (${applicationId}.fileprovider).
+fun createCameraImageUri(context: Context): Pair<File, Uri> {
+    val dir = File(context.cacheDir, "runs_camera").apply { mkdirs() }
+    val file = File(dir, "cam_${System.currentTimeMillis()}.jpg")
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    return file to uri
+}
+
+// Decode a captured photo file into a Bitmap, downsampled so its longest edge is
+// at most maxEdgePx (keeps memory sane for the card + posted bitmap). Returns null
+// if the file is missing/undecodable.
+fun decodeSampledBitmap(file: File, maxEdgePx: Int = 1080): Bitmap? {
+    if (!file.exists()) return null
+    // First pass: read bounds only to compute the sample size.
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, bounds)
+    val longest = maxOf(bounds.outWidth, bounds.outHeight)
+    if (longest <= 0) return null
+    var sample = 1
+    while (longest / sample > maxEdgePx) sample *= 2
+    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+    return BitmapFactory.decodeFile(file.absolutePath, opts)
 }
 
 // Write a bitmap to internal storage and return its absolute path. Coil renders

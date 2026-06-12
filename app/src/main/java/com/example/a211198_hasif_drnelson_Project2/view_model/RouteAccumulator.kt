@@ -12,7 +12,10 @@ data class TrackPoint(val lat: Double, val lng: Double, val timeMs: Long)
 // jitter/accuracy rules are unit-testable on the JVM. RecordViewModel drives
 // this and mirrors kept points into Compose-observable state.
 class RouteAccumulator(
-    private val minAccuracyM: Float = 25f,
+    // 50 m, not 25 m: real phones (especially indoors / first fixes) routinely
+    // report 30–60 m accuracy. A 25 m gate dropped every fix, leaving the screen
+    // stuck on "Waiting for GPS fix...". 50 m still rejects genuinely wild fixes.
+    private val minAccuracyM: Float = 50f,
     private val minMoveM: Double = 4.0,
 ) {
     private val _points = mutableListOf<TrackPoint>()
@@ -21,18 +24,22 @@ class RouteAccumulator(
     var distanceKm: Double = 0.0
         private set
 
-    // Returns true if the fix passed both gates and was appended.
+    // Returns true if the fix passed the gates and was appended.
     fun addFix(lat: Double, lng: Double, accuracyM: Float?, timeMs: Long): Boolean {
-        // Accuracy gate: a low-confidence fix is what makes the line zig-zag.
-        if (accuracyM != null && accuracyM > minAccuracyM) return false
-
         val prev = _points.lastOrNull()
-        if (prev != null) {
-            // Jitter gate: standing still must not accrue distance.
-            val moveM = haversineKm(prev.lat, prev.lng, lat, lng) * 1000.0
-            if (moveM < minMoveM) return false
-            distanceKm += moveM / 1000.0
+        if (prev == null) {
+            // First fix always anchors the trail, even on a poor reading — this is
+            // what clears "Waiting for GPS fix..." and gives the run a start point.
+            _points.add(TrackPoint(lat, lng, timeMs))
+            return true
         }
+        // Accuracy gate (subsequent fixes only): a low-confidence fix is what
+        // makes the line zig-zag, so drop it.
+        if (accuracyM != null && accuracyM > minAccuracyM) return false
+        // Jitter gate: standing still must not accrue distance.
+        val moveM = haversineKm(prev.lat, prev.lng, lat, lng) * 1000.0
+        if (moveM < minMoveM) return false
+        distanceKm += moveM / 1000.0
         _points.add(TrackPoint(lat, lng, timeMs))
         return true
     }
