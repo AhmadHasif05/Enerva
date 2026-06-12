@@ -30,9 +30,12 @@ import java.util.UUID
  *    a real cross-user social feed would need a public top-level collection or a
  *    follow-based fan-out — out of scope for Phase 3.
  *
- * Image note: `imageRes` (drawable id) and `imageUri` (content:// uri) are
- * device-local, so synced reels carry their text/stats across devices but not the
- * picture. Real cloud images arrive with Firebase Storage in Phase 5.
+ * Image note: `imageRes` (drawable id) and `imageUri` (a device-local file/content
+ * path) don't travel. To sync the picture across devices the reel image is
+ * compressed and stored as a Firestore `Blob` on the docs (Firebase Storage needs
+ * the Blaze plan, which this project can't use). On receive the listeners decode
+ * the blob to a cache file under `cacheDir/remote_reels/<id>.jpg` and point
+ * `imageUri` at it; a stats-only post (no blob) falls back to the drawable.
  */
 class GalleryRepository(
     db: AppDatabase,

@@ -333,7 +333,7 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 | 2 | Room (local persistence) | ✅ Done |
 | 3 | Firebase Auth + Cloud Firestore | ✅ Code-complete (rules deploy + on-device checkpoint pending) |
 | 4 | Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ Done — verified on-device (real GPS location renders on a physical phone); map works keyless via OpenFreeMap, optional `MAPTILER_API_KEY` (see docs/setupmaps.md) |
-| 5 | Camera in Record screen | 🔜 Next |
+| 5 | Camera in Record screen | ✅ Code-complete — camera capture + branded card + **cross-device images** (Firestore blob, not Storage — no Blaze); on-device cross-install checkpoint pending |
 
 ### Phase 3 sub-tracker (Firebase)
 
@@ -355,7 +355,7 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 > - **Google Sign-In** uses `GetSignInWithGoogleOption` (button-driven, always shows the picker) — `GetGoogleIdOption` threw `NoCredentialException` on an explicit press. `AuthUser` carries `displayName` + `photoUrl` to seed a new profile.
 > - **Network gotcha:** on TLS-inspecting WiFi (campus/office), GMS can't hold the HTTP/2 connection to Google's auth servers (`ERR_HTTP2_PING_FAILED`). Use mobile data / an unrestricted network. Don't battery-restrict Google Play services on ColorOS/Realme.
 > - **Cross-user feed scope:** owner-only rules forbid reading others' `users/{uid}/media`, so the public feed is served by the `publicReels` collection (not direct reads).
-> - **Image limitation:** `imageRes` (drawable id) and `imageUri` (`content://`) are device-local — synced reels carry text/stats across devices but **not the picture** until Phase 5 adds Firebase Storage.
+> - ~~**Image limitation:** synced reels carry text/stats but **not the picture** until Phase 5 adds Firebase Storage.~~ **Resolved (2026-06-12):** Firebase Storage needs the Blaze plan (no billing card — same constraint as the Phase 4 maps switch), so the reel image is instead compressed to a JPEG and stored as a Firestore **`Blob`** on the `media`/`publicReels` docs (capped <900 KB, under the 1 MB doc limit). Receivers decode it to a cache file and render it; a stats-only post falls back to the drawable. Spec: [`docs/superpowers/specs/2026-06-12-reel-image-sync-design.md`](docs/superpowers/specs/2026-06-12-reel-image-sync-design.md) · Plan: [`docs/superpowers/plans/2026-06-12-reel-image-sync.md`](docs/superpowers/plans/2026-06-12-reel-image-sync.md). Also fixed a latent gap: run-summary posts had never synced to Firestore at all (DAO-only) — they now write-through like the CreatePostDialog path.
 
 ### Phase 4 — Real map in Record (MapLibre + MapTiler/OpenFreeMap) ✅ code-complete
 
@@ -376,9 +376,9 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 1. Add `CAMERA` permission.
 2. CameraX capture (`PreviewView` + `ImageCapture`) using existing deps.
 3. Capture button on Record; request camera + location permissions.
-4. Save media → `MediaEntity` + upload to **Firebase Storage** (gives real cross-device images).
-5. Captured media appears in Gallery reels.
-6. **Checkpoint:** capture from Record → appears in Gallery on another device.
+4. ✅ Save media → `MediaEntity` + cross-device images via a Firestore **`Blob`** (Firebase Storage needs Blaze — unavailable; see the Image-limitation note above).
+5. ✅ Captured media appears in Gallery reels.
+6. **Checkpoint:** capture from Record → appears in Gallery on another device — ⏳ on-device cross-install verification pending.
 
 > **P5 polish (shipped first):** End → branded **ENERVA** run-summary card — pace-coloured
 > route (green=fast … red=slow) + START/FINISH markers + icon stats footer, captured to
