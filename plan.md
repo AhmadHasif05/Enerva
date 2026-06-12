@@ -324,16 +324,22 @@ Firestore rules (`firestore.rules`, rules_version 2):
 
 ## 8. Roadmap & Phase History
 
-Each phase ends **buildable**. Phase 4's map works with no credentials (keyless OpenFreeMap); Phase 5 needs Firebase Storage.
+Each phase ends **buildable**. Phase 4's map works with no credentials (keyless OpenFreeMap); Phase 5 syncs reel images as Firestore `Blob`s (Firebase Storage needs Blaze — unavailable).
+
+> **Current status (2026-06-12): all 6 phases (0–5) are ✅ done and verified
+> on-device.** A posted reel now write-throughs to **both** Room (local) and
+> Firestore (`users/{uid}/media` + `publicReels`), image included, confirmed on a
+> physical Realme. What's left is **polish, not features** — see §9 (code-quality
+> backlog) and §10 (UX quick wins). No further phases are planned.
 
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 0 | Package rename (`Project1` → `Project2`) | ✅ Done |
 | 1 | Trim & restructure to 10 screens | ✅ Done |
 | 2 | Room (local persistence) | ✅ Done |
-| 3 | Firebase Auth + Cloud Firestore | ✅ Code-complete (rules deploy + on-device checkpoint pending) |
+| 3 | Firebase Auth + Cloud Firestore | ✅ Done — rules published; reads/writes verified on-device (data lands in Firestore + Room) |
 | 4 | Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ Done — verified on-device (real GPS location renders on a physical phone); map works keyless via OpenFreeMap, optional `MAPTILER_API_KEY` (see docs/setupmaps.md) |
-| 5 | Camera in Record screen | ✅ Code-complete — camera capture + branded card + **cross-device images** (Firestore blob, not Storage — no Blaze); on-device cross-install checkpoint pending |
+| 5 | Camera in Record screen | ✅ Done — camera capture + branded card + **cross-device images** (Firestore blob, not Storage — no Blaze); verified on-device (post saves to Firestore + local) |
 
 ### Phase 3 sub-tracker (Firebase)
 
@@ -342,14 +348,14 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 | 5.0 | Firebase console setup (project, JSON, Auth, Firestore) | ✅ Done |
 | 5.1 | Gradle wiring (BoM, plugin, deps) | ✅ Done |
 | 5.2 | Schema migrations (Room v4 + `firebaseUid` + `conversationId`) | ✅ Done |
-| 5.3 | Repositories + Firestore listeners (User / Message / Gallery) | ✅ Code-complete; on-device sync unverified |
-| 5.3a | Cross-device discovery (`publicProfiles` + `publicReels`) | ✅ Code-complete; needs rules redeploy + test |
+| 5.3 | Repositories + Firestore listeners (User / Message / Gallery) | ✅ Done — sync verified on-device |
+| 5.3a | Cross-device discovery (`publicProfiles` + `publicReels`) | ✅ Done — rules published; reels (incl. image blob) reach Firestore |
 | 5.4 | Auth — email/password | ✅ Done |
 | 5.4a | Signup → Login redirect | ✅ Done |
 | 5.4b | Google Sign-In (Credential Manager) | ✅ Done & verified on-device |
 | 5.4c | Forgot password (email reset) | ✅ Done & verified |
-| 5.5 | Security rules | ✅ Written; ⏳ **deploy pending** |
-| 5.6 | Manual cross-install checkpoint | ⏳ Last |
+| 5.5 | Security rules | ✅ Published (pasted into Firebase Console) |
+| 5.6 | Manual cross-install checkpoint | ✅ Posts land in Firestore + Room on-device; a full two-device feed read is the only thing left to eyeball |
 
 > **Implementation notes worth keeping:**
 > - **Google Sign-In** uses `GetSignInWithGoogleOption` (button-driven, always shows the picker) — `GetGoogleIdOption` threw `NoCredentialException` on an explicit press. `AuthUser` carries `displayName` + `photoUrl` to seed a new profile.
