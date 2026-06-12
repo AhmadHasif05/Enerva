@@ -95,8 +95,8 @@ fun GalleryScreen(
     if (showCreate) {
         CreatePostDialog(
             onDismiss = { showCreate = false },
-            onCreate = { caption, activity, distance, uri ->
-                galleryViewModel.createPost(caption, activity, distance, uri)
+            onCreate = { caption, activity, distance, uri, imageBytes ->
+                galleryViewModel.createPost(caption, activity, distance, uri, imageBytes)
                 showCreate = false
             }
         )
@@ -331,7 +331,7 @@ private fun ReelActionButton(
 @Composable
 private fun CreatePostDialog(
     onDismiss: () -> Unit,
-    onCreate: (caption: String, activity: String, distance: String, imageUri: String?) -> Unit
+    onCreate: (caption: String, activity: String, distance: String, imageUri: String?, imageBytes: ByteArray?) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var caption by remember { mutableStateOf("") }
@@ -406,7 +406,21 @@ private fun CreatePostDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onCreate(caption, activity, distance, pickedUri) },
+                onClick = {
+                    // Decode the picked photo and compress it so the image syncs
+                    // cross-device as a Firestore blob (null → drawable fallback).
+                    val imageBytes: ByteArray? = pickedUri?.let { uriString ->
+                        runCatching {
+                            context.contentResolver
+                                .openInputStream(android.net.Uri.parse(uriString)).use { input ->
+                                    val bmp = android.graphics.BitmapFactory.decodeStream(input)
+                                        ?: return@runCatching null
+                                    compressReelImage(bmp)
+                                }
+                        }.getOrNull()
+                    }
+                    onCreate(caption, activity, distance, pickedUri, imageBytes)
+                },
                 enabled = pickedUri != null || caption.isNotBlank()
             ) { Text("Post") }
         },

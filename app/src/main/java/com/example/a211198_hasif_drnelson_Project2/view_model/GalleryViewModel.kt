@@ -88,11 +88,15 @@ class GalleryViewModel(
         caption: String,
         activity: String,
         distanceKm: String,
-        imageUri: String?
+        imageUri: String?,
+        imageBytes: ByteArray? = null
     ) {
         val email = activeEmail.ifBlank { return }
         viewModelScope.launch {
-            repository.createPost(email, caption, activity, distanceKm, imageUri, R.drawable.lakesidetrail)
+            repository.createPost(
+                email, caption, activity, distanceKm, imageUri,
+                R.drawable.lakesidetrail, isCard = false, imageBytes = imageBytes
+            )
         }
     }
 

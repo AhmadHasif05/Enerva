@@ -321,6 +321,7 @@ fun RecordScreen(
                 onPost = { caption, cardBitmap ->
                     val runType = recordViewModel.activityType
                     val uri = cardBitmap?.let { saveBitmapToInternalStorage(context, it) }
+                    val imageBytes = cardBitmap?.let { compressReelImage(it) }
                     recordViewModel.saveActivity(
                         type = runType,
                         caption = caption,
@@ -329,6 +330,7 @@ fun RecordScreen(
                         // one; a stats-only run (no bitmap) falls back to the
                         // full-bleed drawable, which should stay Crop.
                         isCard = uri != null,
+                        imageBytes = imageBytes,
                     )
                     snapshotter?.cancel()
                     snapshotter = null

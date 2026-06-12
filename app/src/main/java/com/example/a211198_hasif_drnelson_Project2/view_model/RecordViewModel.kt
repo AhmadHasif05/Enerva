@@ -30,6 +30,8 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
 
     private val activityDao = AppDatabase.get(application).activityDao()
     private val userDao = AppDatabase.get(application).userDao()
+    private val galleryRepository =
+        (application as RunTrackApplication).galleryRepository
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
 
     // Pure GPS logic; the observable state below mirrors its kept points.
@@ -118,6 +120,7 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
         caption: String = "New run",
         imageUri: String? = null,
         isCard: Boolean = false,
+        imageBytes: ByteArray? = null,
     ) {
         if (!shouldSaveRun(elapsedSeconds, distanceKm, imageUri != null)) return
         val email = prefs.getString("activeEmail", null).orEmpty()
@@ -148,6 +151,7 @@ class RecordViewModel(application: Application) : AndroidViewModel(application) 
             )
             activityDao.insertActivity(record)
             activityDao.insertMedia(media)
+            galleryRepository.pushMediaToCloud(media, imageBytes)
         }
     }
 }
