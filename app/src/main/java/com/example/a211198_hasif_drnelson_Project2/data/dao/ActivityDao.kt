@@ -20,6 +20,9 @@ interface ActivityDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMedia(media: MediaEntity)
 
+    @Query("SELECT * FROM media WHERE id = :id LIMIT 1")
+    suspend fun getMediaById(id: String): MediaEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllMedia(media: List<MediaEntity>)
 

@@ -1,5 +1,7 @@
 package com.example.a211198_hasif_drnelson_Project2.data.cloud
 
+import com.google.firebase.firestore.Blob
+
 // Single source of truth for Cloud Firestore collection/sub-collection names and
 // the document shapes (DTOs) we read/write. Keeping these here means the
 // repositories never hard-code a path string and the schema is documented in one
@@ -83,6 +85,8 @@ data class MediaDoc(
     val tint: Long = 0L,
     val imageRes: Int = 0,
     val imageUri: String? = null,
+    val imageBlob: Blob? = null,
+    val isCard: Boolean = false,
     val likes: Int = 0,
     val createdAtMs: Long = 0L
 )
@@ -127,6 +131,8 @@ data class PublicReelDoc(
     val tint: Long = 0L,
     val imageRes: Int = 0,
     val imageUri: String? = null,
+    val imageBlob: Blob? = null,
+    val isCard: Boolean = false,
     val likes: Int = 0,
     val createdAtMs: Long = 0L
 )

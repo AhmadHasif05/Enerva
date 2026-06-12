@@ -14,7 +14,7 @@ class RunTrackApplication : Application() {
     val authRepository: AuthRepository by lazy { AuthRepository() }
     val userRepository: UserRepository by lazy { UserRepository(AppDatabase.get(this)) }
     val messageRepository: MessageRepository by lazy { MessageRepository(AppDatabase.get(this)) }
-    val galleryRepository: GalleryRepository by lazy { GalleryRepository(AppDatabase.get(this)) }
+    val galleryRepository: GalleryRepository by lazy { GalleryRepository(AppDatabase.get(this), cacheDir) }
 
     override fun onCreate() {
         super.onCreate()

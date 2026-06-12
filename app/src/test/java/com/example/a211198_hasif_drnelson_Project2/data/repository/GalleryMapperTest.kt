@@ -1,6 +1,7 @@
 package com.example.a211198_hasif_drnelson_Project2.data.repository
 
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
+import com.google.firebase.firestore.Blob
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -79,5 +80,54 @@ class GalleryMapperTest {
         assertEquals(original.tint, restored.tint)
         assertEquals(original.likes, restored.likes)
         assertEquals(original.createdAtMs, restored.createdAtMs)
+    }
+
+    @Test
+    fun `toDoc carries isCard and the image blob`() {
+        val blob = Blob.fromBytes(byteArrayOf(1, 2, 3))
+        val doc = sampleEntity().copy(isCard = true).toDoc(blob)
+        assertEquals(true, doc.isCard)
+        assertEquals(blob, doc.imageBlob)
+    }
+
+    @Test
+    fun `toDoc without a blob leaves imageBlob null`() {
+        val doc = sampleEntity().toDoc(null)
+        assertEquals(null, doc.imageBlob)
+        assertEquals(false, doc.isCard)
+    }
+
+    @Test
+    fun `toPublicReel carries isCard and the image blob`() {
+        val blob = Blob.fromBytes(byteArrayOf(9))
+        val reel = sampleEntity().copy(isCard = true).toPublicReel("uid-abc", blob)
+        assertEquals("uid-abc", reel.ownerUid)
+        assertEquals(true, reel.isCard)
+        assertEquals(blob, reel.imageBlob)
+    }
+
+    @Test
+    fun `remote public reel uses the cache path override and carries isCard`() {
+        val doc = sampleEntity().copy(isCard = true).toPublicReel("uid-abc", Blob.fromBytes(byteArrayOf(1)))
+        val entity = doc.toEntity(imageUriOverride = "/cache/remote_reels/reel-1.jpg")
+        assertEquals("/cache/remote_reels/reel-1.jpg", entity.imageUri)
+        assertEquals(true, entity.isCard)
+        assertEquals("uid:uid-abc", entity.ownerEmail)
+    }
+
+    @Test
+    fun `remote public reel with no override falls back to null image`() {
+        val doc = sampleEntity().toPublicReel("uid-abc", null)
+        val entity = doc.toEntity(imageUriOverride = null)
+        assertEquals(null, entity.imageUri)
+    }
+
+    @Test
+    fun `media doc maps back with the cache path override and isCard`() {
+        val doc = sampleEntity().copy(isCard = true).toDoc(Blob.fromBytes(byteArrayOf(1)))
+        val entity = doc.toEntity(ownerEmail = "me@example.com", imageUriOverride = "/cache/x.jpg")
+        assertEquals("me@example.com", entity.ownerEmail)
+        assertEquals("/cache/x.jpg", entity.imageUri)
+        assertEquals(true, entity.isCard)
     }
 }
