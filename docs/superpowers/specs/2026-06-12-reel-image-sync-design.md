@@ -64,21 +64,43 @@ fun compressReelImage(bitmap: Bitmap, maxBytes: Int = 900_000): ByteArray?
   posts with no blob and the reel falls back to the drawable on other devices).
 
 ### 3. Write path — encode at the call sites, store in the repo
-`ByteArray?` (not a Firestore `Blob`) is threaded from the UI/VM down to the
-repository, so **Firestore types stay confined to the data layer** and the VMs
-remain Android/Firestore-free.
+
+> **Correction to the original draft (found during planning):** the Record path
+> does **not** currently flow through `GalleryRepository.createPost`.
+> `RecordViewModel.saveActivity` writes the reel *directly* to the DAO
+> (`activityDao.insertMedia`) and never touches Firestore — so **run-summary posts
+> have never synced to the cloud at all**, image or not. Only the CreatePostDialog
+> path (`GalleryViewModel.createPost`) does write-through. This fix therefore also
+> closes that latent gap by routing the Record post through the cloud write.
+
+To avoid duplicating the Firestore-write logic, extract it from `createPost` into a
+reusable repository method:
+
+```
+suspend fun pushMediaToCloud(entity: MediaEntity, imageBytes: ByteArray?)
+```
+
+It looks up the owner's `firebaseUid` (by `entity.ownerEmail`), wraps
+`imageBytes` as `Blob.fromBytes(...)`, and writes `entity.toDoc(blob)` to
+`users/{uid}/media/{id}` + `entity.toPublicReel(uid, blob)` to `publicReels/{id}`
+inside the existing best-effort `runCatching`. `createPost` is refactored to build
+its entity, insert to Room, then call `pushMediaToCloud`.
+
+`ByteArray?` (not a Firestore `Blob`) is threaded from the UI/VM down, so
+**Firestore types stay confined to the data layer** and the VMs remain
+Android/Firestore-free.
 
 - **Record path:** `RecordScreen.onPost` already has the `cardBitmap`. Encode it
   with `compressReelImage` and pass the bytes through
-  `RecordViewModel.saveActivity(... imageBytes)` → `GalleryRepository.createPost`.
+  `RecordViewModel.saveActivity(... imageBytes)`, which (after the existing
+  `activityDao.insertMedia`) calls `galleryRepository.pushMediaToCloud(media,
+  imageBytes)`. `RecordViewModel` gains a `galleryRepository` reference (from
+  `RunTrackApplication`).
 - **CreatePostDialog path:** `GalleryScreen` has the picked `content://` URI and a
   `Context`. Decode the URI to a bitmap, encode it, and pass the bytes through
   `GalleryViewModel.createPost(... imageBytes)` → `createPost`. This makes raw
   photo posts sync too, not just run-summary cards.
-- `GalleryRepository.createPost` gains an `imageBytes: ByteArray? = null`
-  parameter. It wraps the bytes as `Blob.fromBytes(...)` and sets `imageBlob` +
-  the already-threaded `isCard` on both the `MediaDoc` and `PublicReelDoc` it
-  writes. The local `MediaEntity` is unchanged (still stores only the local path).
+- The local `MediaEntity` is unchanged (still stores only the local path).
 
 ### 4. Receive / display path — `data/repository/GalleryRepository.kt`
 Add a `cacheDir: File` constructor parameter (wired from `RunTrackApplication`,
@@ -113,10 +135,11 @@ re-decoding the blob to cache.
 ```
 Phone A: End run → RunSummarySheet Post
   → cardBitmap → compressReelImage() → bytes
-  → saveActivity(imageBytes=bytes) → createPost(imageBytes=bytes)
+  → saveActivity(imageBytes=bytes)
       → Room: MediaEntity (local PNG path, isCard)            [instant local display]
-      → Firestore users/{uid}/media/{id}: MediaDoc(imageBlob, isCard)
-      → Firestore publicReels/{id}: PublicReelDoc(imageBlob, isCard)
+      → pushMediaToCloud(media, bytes):
+          → Firestore users/{uid}/media/{id}: MediaDoc(imageBlob, isCard)
+          → Firestore publicReels/{id}: PublicReelDoc(imageBlob, isCard)
 
 Phone B: publicReels listener fires
   → PublicReelDoc(imageBlob) → write cacheDir/remote_reels/{id}.jpg
@@ -156,7 +179,8 @@ Phone B: publicReels listener fires
 ## Files touched (summary)
 - `data/cloud/FirestoreSchema.kt` — `imageBlob` + `isCard` on `MediaDoc` & `PublicReelDoc`
 - `view/screen/RouteSnapshot.kt` — `compressReelImage` helper
-- `data/repository/GalleryRepository.kt` — `cacheDir` param; encode-into-doc on write; decode-to-cache on receive; own-post guard; mappers
+- `data/repository/GalleryRepository.kt` — `cacheDir` param; `pushMediaToCloud`; decode-to-cache on receive; own-post guard; mappers (`blob`/`isCard`/`imageUriOverride`)
+- `data/dao/ActivityDao.kt` — `suspend fun getMediaById(id): MediaEntity?` (own-post guard)
 - `view_model/RecordViewModel.kt` — `imageBytes` through `saveActivity`
 - `view_model/GalleryViewModel.kt` — `imageBytes` through `createPost`
 - `view/screen/RecordScreen.kt` — encode `cardBitmap`, pass bytes
