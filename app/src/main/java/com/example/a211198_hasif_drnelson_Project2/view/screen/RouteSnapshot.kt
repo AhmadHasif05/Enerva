@@ -23,6 +23,7 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 
@@ -185,4 +186,27 @@ fun saveBitmapToInternalStorage(context: Context, bitmap: Bitmap): String {
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
     }
     return file.absolutePath
+}
+
+// Compress a reel bitmap to a JPEG ByteArray that fits under maxBytes (Firestore's
+// per-document limit is 1 MB; 900 KB leaves room for the other doc fields). Steps
+// quality down first, then halves the longest edge, retrying until under the cap.
+// Returns null if it still cannot fit (caller then posts without an image blob and
+// the reel falls back to the drawable on other devices).
+fun compressReelImage(bitmap: Bitmap, maxBytes: Int = 900_000): ByteArray? {
+    var current = bitmap
+    repeat(4) {
+        for (quality in intArrayOf(80, 65, 50, 40)) {
+            val out = ByteArrayOutputStream()
+            current.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            val bytes = out.toByteArray()
+            if (bytes.size <= maxBytes) return bytes
+        }
+        // Still too big at the lowest quality — halve the dimensions and retry.
+        val w = current.width / 2
+        val h = current.height / 2
+        if (w < 1 || h < 1) return null
+        current = Bitmap.createScaledBitmap(current, w, h, true)
+    }
+    return null
 }
