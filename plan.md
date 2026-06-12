@@ -386,6 +386,18 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 > is now a working **Walk↔Run** toggle (locked once a run is underway).
 > Spec: [`docs/superpowers/specs/2026-06-12-run-summary-card-design.md`](docs/superpowers/specs/2026-06-12-run-summary-card-design.md) ·
 > Plan: [`docs/superpowers/plans/2026-06-12-run-summary-card.md`](docs/superpowers/plans/2026-06-12-run-summary-card.md)
+>
+> **✅ Verified on-device (physical phone, 2026-06-12):** full Record flow — open map →
+> Start → End → run-summary sheet → **Post** — works end-to-end; the reel appears in the
+> feed with the branded route snapshot, duration, caption, and type.
+> - **Crash fix:** `ramani-maplibre` 0.12.0 pulls MapLibre `android-sdk` 13.x, which is
+>   **Vulkan-only** and crashed (`No Vulkan compatible GPU found`) the moment the Record map
+>   loaded on a device without a Vulkan GPU (Unisoc `sp7731e`). Pinned `android-sdk` to the
+>   last OpenGL-ES line (`strictly("11.11.0")`) in `app/build.gradle.kts`. **Do not let
+>   MapLibre float back to 12.x/13.x** unless every target device has Vulkan.
+>   See [`docs/record-screen-crash-fix.md`](docs/record-screen-crash-fix.md).
+> - **Install note:** the debug build is restricted to `armeabi-v7a` so the APK fits the
+>   low-storage test phone (81 MB → ~46 MB); release stays all-ABI.
 
 ---
 
