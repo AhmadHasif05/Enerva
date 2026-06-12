@@ -47,6 +47,16 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // The physical test phone (Unisoc sp7731e, 32-bit armeabi-v7a) has very little
+            // free storage, so the default all-ABI debug APK fails to install with
+            // INSUFFICIENT_STORAGE. Ship debug with only this device's ABI to keep it small.
+            // Release stays all-ABI for submission. To test on a 64-bit device/emulator,
+            // add "arm64-v8a" (or "x86_64" for an emulator) here.
+            ndk {
+                abiFilters += "armeabi-v7a"
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -98,6 +108,12 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
     implementation(libs.ramani.maplibre)
+    // ramani-maplibre 0.12.0 pulls MapLibre android-sdk 13.x, which is Vulkan-only and
+    // crashes ("No Vulkan compatible GPU found") on devices without a Vulkan GPU (e.g. the
+    // Unisoc sp7731e test phone). Pin to the last OpenGL-ES line so the map renders there.
+    implementation("org.maplibre.gl:android-sdk") {
+        version { strictly("11.11.0") }
+    }
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.core)
