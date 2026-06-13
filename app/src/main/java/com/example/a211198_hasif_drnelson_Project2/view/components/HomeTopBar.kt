@@ -55,22 +55,22 @@ fun HomeTopBar(navController: NavController, photoUri: String? = null) {
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
+            Box(                                              // circular avatar → opens Profile
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    .clickable { navController.navigate(Screen.Profile.route) }
+                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape) // thin ring
+                    .clickable { navController.navigate(Screen.Profile.route) }   // tap → Profile
             ) {
                 AsyncImage(
-                    model = photoUri ?: R.drawable.hasif_profile,
+                    model = photoUri ?: R.drawable.hasif_profile, // user photo, or default avatar
                     contentDescription = "Profile Picture",
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop          // fill the circle
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
+            IconButton(                                       // chat icon → opens Messages
                 onClick = { navController.navigate(Screen.Messages.route) },
                 modifier = Modifier.size(40.dp)
             ) {

@@ -52,12 +52,14 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 import com.example.a211198_hasif_drnelson_Project2.view.components.HomeTopBar
 import com.example.a211198_hasif_drnelson_Project2.ui.theme.RunTrackTheme
 
-// HomeScreen composable
+// HomeScreen — the landing tab. A scrollable column with the top bar, a "Your
+// Progress" gallery row, and a "Plan Your Weekend Run" route row. Content fades +
+// slides in on first composition for a polished entrance.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController, userViewModel: UserViewModel) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
+    var visible by remember { mutableStateOf(false) }         // drives the enter animation
+    LaunchedEffect(Unit) { visible = true }                   // flip to visible once, right after first compose
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AnimatedVisibility(
@@ -103,12 +105,12 @@ fun GallerySection(
     onSeeAll: () -> Unit = {},
     galleryViewModel: GalleryViewModel = viewModel(factory = GalleryViewModel.Factory)
 ) {
-    val myEmail = userViewModel.userProfile.email
-    val myName = userViewModel.userProfile.runnerName.ifBlank { "You" }
-    LaunchedEffect(myEmail, myName) {
-        if (myEmail.isNotBlank()) galleryViewModel.showMyPosts(myEmail, myName)
+    val myEmail = userViewModel.userProfile.email             // who's logged in (keys the gallery query)
+    val myName = userViewModel.userProfile.runnerName.ifBlank { "You" } // display name, fallback "You"
+    LaunchedEffect(myEmail, myName) {                         // re-run when the active user changes
+        if (myEmail.isNotBlank()) galleryViewModel.showMyPosts(myEmail, myName) // load only my own posts
     }
-    val activities = galleryViewModel.reels
+    val activities = galleryViewModel.reels                   // the posts to show in the row
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -234,12 +236,13 @@ fun WeekendRunSection(userViewModel: UserViewModel) {
     }
 }
 
+// Wraps a RouteCard in a one-shot fade+slide-in entrance animation.
 @Composable
 fun WorkoutCardVisible(route: RunRoute, saved: Boolean, onSaveToggle: () -> Unit) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
+    var visible by remember { mutableStateOf(false) }         // per-card animation flag
+    LaunchedEffect(Unit) { visible = true }                   // trigger the entrance once
     AnimatedVisibility(visible = visible, enter = fadeIn() + slideInVertically(initialOffsetY = { it }), exit = fadeOut()) {
-        RouteCard(route = route, saved = saved, onSaveToggle = onSaveToggle)
+        RouteCard(route = route, saved = saved, onSaveToggle = onSaveToggle) // the actual card content
     }
 }
 
