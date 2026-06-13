@@ -29,23 +29,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// The branded run-summary card: ENERVA header + pace-coloured route map + stats
-// footer. Used both on screen (in RunSummarySheet) and, via `captureLayer`,
-// rendered to the bitmap posted to the gallery. Pure presentation — no logic.
+// The branded run-summary card: a 4:5 hero image (the user's photo if taken, else
+// the pace-coloured route map) with overlays — ENERVA wordmark top-left, a stats
+// info chip bottom-right, and (only when the route map is the hero) the pace legend
+// bottom-left. Used on screen in RunSummarySheet and, via `captureLayer`, exported
+// to the 4:5 bitmap posted to the gallery. Pure presentation — no logic.
 @Composable
 fun RunSummaryCard(
-    snapshot: Bitmap?,
+    photo: Bitmap?,
+    routeSnapshot: Bitmap?,
     snapshotLoading: Boolean,
     timeText: String,
     distanceText: String,
     paceText: String,
     modifier: Modifier = Modifier,
     captureLayer: GraphicsLayer? = null,
-    // True when `snapshot` is a user-taken photo rather than the route map: the
-    // pace legend is meaningless on a photo, so it's hidden.
-    isPhoto: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
+
+    val heroIsPhoto = photo != null
+    val hero = photo ?: routeSnapshot
+    // Show the route thumbnail in the chip only when a photo took the hero slot, so
+    // the route stays visible. When the route map is already the hero, the thumbnail
+    // would be redundant.
+    val showRouteThumb = photo != null && routeSnapshot != null
+    // The pace legend is meaningful only over the route map, never over a photo.
+    val showPaceLegend = !heroIsPhoto && routeSnapshot != null
 
     // When a capture layer is supplied, record this card's drawing into it so the
     // sheet can export the exact on-screen card as a bitmap.
@@ -56,86 +65,140 @@ fun RunSummaryCard(
         }
     } else Modifier
 
-    Column(
+    Box(
         modifier = modifier
+            .aspectRatio(4f / 5f)
             .clip(RoundedCornerShape(16.dp))
             .background(colors.background)
             .then(captureModifier)
     ) {
-        // Header
+        // Hero image (or loading / empty state).
+        when {
+            snapshotLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            hero != null -> Image(
+                bitmap = hero.asImageBitmap(),
+                contentDescription = if (heroIsPhoto) "Run photo" else "Route map",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No route image", color = colors.onSurfaceVariant)
+            }
+        }
+
+        // Top + bottom scrim so the white wordmark and the chip stay legible over
+        // any image.
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.primary)
-                .padding(vertical = 16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "ENERVA",
-                color = colors.onPrimary,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 26.sp,
-                letterSpacing = 3.sp
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = 0.25f),
+                        0.35f to Color.Transparent,
+                        0.7f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.45f)
+                    )
+                )
+        )
+
+        // ENERVA wordmark, top-left.
+        Text(
+            "ENERVA",
+            color = Color.White,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 20.sp,
+            letterSpacing = 3.sp,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 14.dp, top = 12.dp)
+        )
+
+        // Pace legend, bottom-left — only when the route map is the hero.
+        if (showPaceLegend) {
+            PaceLegend(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 12.dp, bottom = 12.dp)
             )
         }
 
-        // Map
-        Box(
+        // Info chip, bottom-right: ENERVA + (route thumbnail when hero is a photo) +
+        // the three stats.
+        InfoChip(
+            timeText = timeText,
+            distanceText = distanceText,
+            paceText = paceText,
+            routeThumb = if (showRouteThumb) routeSnapshot else null,
             modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                snapshotLoading -> CircularProgressIndicator()
-                snapshot != null -> Image(
-                    bitmap = snapshot.asImageBitmap(),
-                    contentDescription = if (isPhoto) "Run photo" else "Route map",
-                    modifier = Modifier.fillMaxSize(),
+                .align(Alignment.BottomEnd)
+                .padding(end = 12.dp, bottom = 12.dp)
+        )
+    }
+}
+
+@Composable
+private fun InfoChip(
+    timeText: String,
+    distanceText: String,
+    paceText: String,
+    routeThumb: Bitmap?,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .widthIn(max = 180.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.72f))
+            .padding(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (routeThumb != null) {
+                Image(
+                    bitmap = routeThumb.asImageBitmap(),
+                    contentDescription = "Route map",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
                 )
-                else -> Text("No route image", color = colors.onSurfaceVariant)
+                Spacer(Modifier.width(8.dp))
             }
-            if (snapshot != null && !isPhoto) {
-                PaceLegend(modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp))
-            }
+            Text(
+                "ENERVA",
+                color = Color(0xFFFFB38A),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 11.sp,
+                letterSpacing = 1.sp
+            )
         }
-
-        // Stats footer
-        Row(modifier = Modifier.fillMaxWidth().background(colors.surface)) {
-            SummaryStatTile(Icons.Filled.Timer, "DURATION", timeText, Modifier.weight(1f))
-            FooterDivider()
-            SummaryStatTile(Icons.Filled.Place, "DISTANCE", distanceText, Modifier.weight(1f))
-            FooterDivider()
-            SummaryStatTile(Icons.Filled.Speed, "PACE", paceText, Modifier.weight(1f))
+        Spacer(Modifier.height(6.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            ChipStat(Icons.Filled.Timer, "DURATION", timeText, Modifier.weight(1f))
+            ChipStat(Icons.Filled.Place, "DISTANCE", distanceText, Modifier.weight(1f))
+            ChipStat(Icons.Filled.Speed, "PACE", paceText, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun SummaryStatTile(icon: ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
+private fun ChipStat(icon: ImageVector, label: String, value: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(vertical = 14.dp),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(icon, contentDescription = null, tint = colors.onSurface, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = colors.onSurfaceVariant, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Medium)
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
         Spacer(Modifier.height(2.dp))
-        Text(value, color = colors.onSurface, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+        Text(
+            label,
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 7.sp,
+            letterSpacing = 0.5.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
     }
-}
-
-@Composable
-private fun FooterDivider() {
-    Box(
-        modifier = Modifier
-            .padding(vertical = 12.dp)
-            .width(1.dp)
-            .height(40.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant)
-    )
 }
 
 @Composable
