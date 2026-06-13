@@ -1,62 +1,66 @@
+// Package — UI "screen" layer.
 package com.example.a211198_hasif_drnelson_Project2.view.screen
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.GroupAdd
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.toMutableStateList
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
-import com.example.a211198_hasif_drnelson_Project2.model.Conversation
-import com.example.a211198_hasif_drnelson_Project2.view.Screen
-import com.example.a211198_hasif_drnelson_Project2.view.chatRoute
-import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+// ---- Compose & Android imports ----
+import androidx.compose.foundation.background                       // background colour fill
+import androidx.compose.foundation.clickable                        // makes a row/box tappable
+import androidx.compose.foundation.layout.*                         // Row, Column, Box, Spacer, padding, size…
+import androidx.compose.foundation.lazy.LazyColumn                  // efficient scrolling list
+import androidx.compose.foundation.lazy.items                       // emits a list into a LazyColumn
+import androidx.compose.foundation.shape.CircleShape                // round avatar shape
+import androidx.compose.material.icons.Icons                        // Material icon set entry point
+import androidx.compose.material.icons.automirrored.filled.ArrowBack // RTL-aware back arrow
+import androidx.compose.material.icons.filled.EditNote              // "new message" / empty-state icon
+import androidx.compose.material.icons.filled.GroupAdd              // "new group" icon
+import androidx.compose.material.icons.rounded.Person               // avatar placeholder icon
+import androidx.compose.material3.*                                 // Scaffold, TopAppBar, Text, AlertDialog…
+import androidx.compose.runtime.Composable                         // marks a function as composable UI
+import androidx.compose.runtime.getValue                           // property-delegate read for state (by)
+import androidx.compose.runtime.mutableStateOf                     // creates observable state
+import androidx.compose.runtime.remember                           // remembers state across recompositions
+import androidx.compose.runtime.setValue                           // property-delegate write for state (by)
+import androidx.compose.runtime.toMutableStateList                 // turns a list into observable SnapshotStateList
+import androidx.compose.ui.Alignment                               // Center/Start/End alignment
+import androidx.compose.ui.Modifier                                // styling/layout modifier chain
+import androidx.compose.ui.draw.clip                               // clip composable to a shape
+import androidx.compose.ui.text.font.FontWeight                    // bold/normal weights
+import androidx.compose.ui.text.style.TextAlign                    // text alignment (centre the empty state)
+import androidx.compose.ui.text.style.TextOverflow                 // ellipsis for overflowing preview text
+import androidx.compose.ui.tooling.preview.Preview                 // Studio design preview
+import androidx.compose.ui.unit.dp                                 // dp sizes
+import androidx.compose.ui.unit.sp                                 // sp font sizes
+import androidx.lifecycle.viewmodel.compose.viewModel              // obtain the screen's ViewModel
+import androidx.navigation.NavController                           // navigate to chat / search
+import androidx.navigation.compose.rememberNavController           // fake controller for @Preview
+import com.example.a211198_hasif_drnelson_Project2.model.Conversation        // a chat thread model
+import com.example.a211198_hasif_drnelson_Project2.view.Screen                // route constants
+import com.example.a211198_hasif_drnelson_Project2.view.chatRoute             // builds the "chat/{name}" route
+import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel // holds the conversation list
+import java.text.SimpleDateFormat                                  // formats the last-message time
+import java.util.Date                                             // wraps epoch millis
+import java.util.Locale                                           // device locale for time formatting
 
-@OptIn(ExperimentalMaterial3Api::class)
+// MessageScreen — the inbox: a list of conversations (direct + group), with
+// actions to start a new message (go to Search) or create a group chat.
+@OptIn(ExperimentalMaterial3Api::class) // TopAppBar is an experimental Material3 API
 @Composable
 fun MessageScreen(
-    navController: NavController,
-    messageViewModel: MessageViewModel = viewModel()
+    navController: NavController,                              // for navigating to a chat / search
+    messageViewModel: MessageViewModel = viewModel()          // supplies the conversation list + group creation
 ) {
-    val colors = MaterialTheme.colorScheme
-    val conversations = messageViewModel.conversationList
+    val colors = MaterialTheme.colorScheme                    // theme palette
+    val conversations = messageViewModel.conversationList     // all threads, newest-active first
 
     // Controls the "New Group" dialog.
-    var showGroupDialog by remember { mutableStateOf(false) }
+    var showGroupDialog by remember { mutableStateOf(false) } // false = hidden, true = shown
 
-    if (showGroupDialog) {
+    if (showGroupDialog) {                                    // only compose the dialog when requested
         NewGroupDialog(
-            friendNames = conversations.filter { !it.isGroup }.map { it.friendName },
-            onDismiss = { showGroupDialog = false },
+            friendNames = conversations.filter { !it.isGroup }.map { it.friendName }, // only direct chats can join a group
+            onDismiss = { showGroupDialog = false },          // close without creating
             onCreate = { groupName, members ->
-                messageViewModel.createGroup(groupName, members)
-                showGroupDialog = false
+                messageViewModel.createGroup(groupName, members) // create the group thread
+                showGroupDialog = false                       // then close the dialog
             }
         )
     }
@@ -73,7 +77,7 @@ fun MessageScreen(
                         )
                     )
                 },
-                navigationIcon = {
+                navigationIcon = {                            // back button
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -82,11 +86,11 @@ fun MessageScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
+                actions = {                                   // right-side actions
+                    IconButton(onClick = { navController.navigate(Screen.Search.route) }) { // start a new 1:1 chat
                         Icon(Icons.Default.EditNote, contentDescription = "New Message", tint = colors.onBackground)
                     }
-                    IconButton(onClick = { showGroupDialog = true }) {
+                    IconButton(onClick = { showGroupDialog = true }) { // open the group-create dialog
                         Icon(Icons.Default.GroupAdd, contentDescription = "New Group", tint = colors.onBackground)
                     }
                 },
@@ -94,43 +98,44 @@ fun MessageScreen(
             )
         },
         containerColor = colors.background
-    ) { paddingValues ->
-        if (conversations.isEmpty()) {
+    ) { paddingValues ->                                      // padding reserved for the top bar
+        if (conversations.isEmpty()) {                        // nothing yet → show the empty state
             EmptyMessages(modifier = Modifier.padding(paddingValues))
-        } else {
+        } else {                                              // otherwise list the conversations
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                items(conversations, key = { it.friendName }) { conversation ->
+                items(conversations, key = { it.friendName }) { conversation -> // key = friend/group name
                     ConversationRow(
                         conversation = conversation,
-                        onClick = { navController.navigate(chatRoute(conversation.friendName)) }
+                        onClick = { navController.navigate(chatRoute(conversation.friendName)) } // open that chat
                     )
-                    HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f)) // thin separator between rows
                 }
             }
         }
     }
 }
 
+// One inbox row: avatar + name + last-message preview + time.
 @Composable
 private fun ConversationRow(
     conversation: Conversation,
-    onClick: () -> Unit
+    onClick: () -> Unit                                       // tap → open the chat
 ) {
     val colors = MaterialTheme.colorScheme
-    val last = conversation.lastMessage
+    val last = conversation.lastMessage                       // most recent message (null if none yet)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick)                     // whole row is tappable
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        Box(                                                  // round avatar placeholder
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
@@ -140,24 +145,24 @@ private fun ConversationRow(
             Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.onSurface)
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f)) {              // name + preview take the remaining width
             Text(
-                conversation.friendName,
+                conversation.friendName,                      // friend or group name
                 color = colors.onBackground,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
-                text = last?.let {
-                    if (it.fromMe) "You: ${it.text}" else it.text
-                } ?: "Started following you",
+                text = last?.let {                            // build the preview line:
+                    if (it.fromMe) "You: ${it.text}" else it.text // prefix "You:" for my own last message
+                } ?: "Started following you",                 // fallback when there are no messages yet
                 color = colors.onSurfaceVariant,
                 fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 1,                                  // keep the preview to a single line
+                overflow = TextOverflow.Ellipsis              // … when it's too long
             )
         }
-        if (last != null) {
+        if (last != null) {                                   // only show a time when a message exists
             Text(
                 text = formatTimestamp(last.timestampMs),
                 color = colors.onSurfaceVariant,
@@ -167,6 +172,7 @@ private fun ConversationRow(
     }
 }
 
+// Friendly empty state shown when the user has no conversations yet.
 @Composable
 private fun EmptyMessages(modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -174,14 +180,14 @@ private fun EmptyMessages(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,   // centre everything
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
+        Box(                                                  // large tinted icon badge
             modifier = Modifier
                 .size(120.dp)
                 .clip(CircleShape)
-                .background(colors.primary.copy(alpha = 0.15f)),
+                .background(colors.primary.copy(alpha = 0.15f)), // faint brand-tinted circle
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -213,12 +219,12 @@ private fun EmptyMessages(modifier: Modifier = Modifier) {
 // Pick a name + at least one member, then Create.
 @Composable
 private fun NewGroupDialog(
-    friendNames: List<String>,
-    onDismiss: () -> Unit,
-    onCreate: (groupName: String, members: List<String>) -> Unit
+    friendNames: List<String>,                               // candidate members (your direct-chat friends)
+    onDismiss: () -> Unit,                                   // cancel / outside-tap
+    onCreate: (groupName: String, members: List<String>) -> Unit // confirm with the chosen name + members
 ) {
     val colors = MaterialTheme.colorScheme
-    var groupName by remember { mutableStateOf("") }
+    var groupName by remember { mutableStateOf("") }          // the typed group name
     // Tracks which friends are checked. A SnapshotStateList so the dialog recomposes on toggle.
     val selected = remember { mutableListOf<String>().toMutableStateList() }
 
@@ -229,13 +235,13 @@ private fun NewGroupDialog(
             Column {
                 OutlinedTextField(
                     value = groupName,
-                    onValueChange = { groupName = it },
+                    onValueChange = { groupName = it },       // keep the name in sync with typing
                     label = { Text("Group name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                if (friendNames.isEmpty()) {
+                if (friendNames.isEmpty()) {                  // no friends to add yet → hint instead of a list
                     Text(
                         "Follow some runners first — they'll appear here to add to a group.",
                         color = colors.onSurfaceVariant,
@@ -243,18 +249,18 @@ private fun NewGroupDialog(
                     )
                 } else {
                     Text("Add friends", color = colors.onSurfaceVariant, fontSize = 13.sp)
-                    friendNames.forEach { name ->
+                    friendNames.forEach { name ->             // one checkable row per friend
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .clickable {                  // tapping the row toggles selection too
                                     if (selected.contains(name)) selected.remove(name) else selected.add(name)
                                 }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
-                                checked = selected.contains(name),
+                                checked = selected.contains(name), // reflects current selection
                                 onCheckedChange = {
                                     if (it) selected.add(name) else selected.remove(name)
                                 }
@@ -267,8 +273,8 @@ private fun NewGroupDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onCreate(groupName, selected.toList()) },
-                enabled = groupName.isNotBlank() && selected.isNotEmpty()
+                onClick = { onCreate(groupName, selected.toList()) }, // hand back a snapshot copy of the members
+                enabled = groupName.isNotBlank() && selected.isNotEmpty() // need a name and ≥1 member
             ) {
                 Text("Create")
             }
@@ -279,9 +285,11 @@ private fun NewGroupDialog(
     )
 }
 
+// Format the last-message time as "HH:mm" in the device locale.
 private fun formatTimestamp(ms: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
 
+// Design-time preview for Android Studio.
 @Preview
 @Composable
 fun MessageScreenPreview() {
