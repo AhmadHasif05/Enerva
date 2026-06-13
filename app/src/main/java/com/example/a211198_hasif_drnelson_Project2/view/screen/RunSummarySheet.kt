@@ -71,9 +71,8 @@ fun RunSummarySheet(
         }
     }
 
-    // What the card shows: a captured photo wins over the route snapshot.
-    val cardImage = photo ?: snapshot
-    val hasImage = cardImage != null
+    // True when there is anything to render/post — a photo or the route snapshot.
+    val hasImage = photo != null || snapshot != null
 
     ModalBottomSheet(
         onDismissRequest = onDiscard,
@@ -88,14 +87,14 @@ fun RunSummarySheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             RunSummaryCard(
-                snapshot = cardImage,
+                photo = photo,
+                routeSnapshot = snapshot,
                 snapshotLoading = snapshotLoading && photo == null,
                 timeText = timeText,
                 distanceText = distanceText,
                 paceText = paceText,
                 modifier = Modifier.fillMaxWidth(),
                 captureLayer = captureLayer,
-                isPhoto = photo != null,
             )
 
             Spacer(Modifier.height(12.dp))
