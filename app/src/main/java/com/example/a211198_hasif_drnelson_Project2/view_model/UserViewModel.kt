@@ -189,10 +189,10 @@ class UserViewModel(
         viewModelScope.launch { userRepository.saveProfile(updated) }
     }
 
-    fun updatePhotoUri(photoUri: String?) {
+    fun updatePhotoUri(photoUri: String?, avatarBytes: ByteArray? = null) {
         val updated = userProfile.copy(photoUri = photoUri)
         userProfile = updated
-        viewModelScope.launch { userRepository.saveProfile(updated) }
+        viewModelScope.launch { userRepository.saveProfile(updated, avatarBytes) }
     }
 
     fun updateRunnerName(runnerName: String) {
@@ -205,6 +205,14 @@ class UserViewModel(
     // ---- follows ----
 
     fun isFollowing(name: String): Boolean = followedPeople[name] == true
+
+    /**
+     * Resolve a reel/profile author's avatar by display name: my own photo if it's
+     * me, else the directory entry (cross-device), else null (icon fallback).
+     */
+    fun photoForAuthor(name: String): String? =
+        if (name == userProfile.runnerName) userProfile.photoUri
+        else otherUsers.firstOrNull { it.runnerName == name }?.photoUri
 
     fun toggleFollow(name: String) {
         val owner = userProfile.email

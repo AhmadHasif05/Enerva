@@ -210,3 +210,20 @@ fun compressReelImage(bitmap: Bitmap, maxBytes: Int = 900_000): ByteArray? {
     }
     return null
 }
+
+// Compress a profile avatar: downscale the longest side to `maxDim` px first
+// (avatars render small), then reuse compressReelImage's quality ladder under a
+// tight byte cap so the blob stays well within the Firestore doc limit.
+fun compressAvatarImage(bitmap: Bitmap, maxDim: Int = 256): ByteArray? {
+    val longest = maxOf(bitmap.width, bitmap.height)
+    val scaled = if (longest > maxDim) {
+        val ratio = maxDim.toFloat() / longest
+        Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * ratio).toInt().coerceAtLeast(1),
+            (bitmap.height * ratio).toInt().coerceAtLeast(1),
+            true
+        )
+    } else bitmap
+    return compressReelImage(scaled, maxBytes = 120_000)
+}

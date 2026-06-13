@@ -60,7 +60,15 @@ fun EditProfileScreen(
                 )
             } catch (_: SecurityException) { /* non-persistable provider; still usable this session */ }
             photoUri = uri.toString()
-            userViewModel.updatePhotoUri(photoUri)
+            // Compress to a small JPEG so the avatar syncs cross-device as a blob.
+            val avatarBytes = runCatching {
+                context.contentResolver.openInputStream(uri).use { input ->
+                    val bmp = android.graphics.BitmapFactory.decodeStream(input)
+                        ?: return@runCatching null
+                    compressAvatarImage(bmp)
+                }
+            }.getOrNull()
+            userViewModel.updatePhotoUri(photoUri, avatarBytes)
         }
     }
     val launchPicker: () -> Unit = {
