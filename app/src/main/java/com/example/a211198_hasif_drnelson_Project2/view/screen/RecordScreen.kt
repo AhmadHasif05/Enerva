@@ -147,11 +147,11 @@ fun RecordScreen(
             renderMode = RenderMode.COMPASS,
             cameraMode = cameraMode,
         ) {
-            val trail = recordViewModel.path.map { LatLng(it.lat, it.lng) }
-            if (trail.size >= 2) {
-                Polyline(points = trail, color = trailColorHex, lineWidth = 8f)
+            val trail = recordViewModel.path.map { LatLng(it.lat, it.lng) } // breadcrumb path → map coords
+            if (trail.size >= 2) {                            // need 2+ points to draw a line
+                Polyline(points = trail, color = trailColorHex, lineWidth = 8f) // the recorded route
             }
-            if (trail.isNotEmpty()) {
+            if (trail.isNotEmpty()) {                         // mark where the run started
                 Circle(
                     centerState = startCenter,
                     radius = 8f,
@@ -175,6 +175,7 @@ fun RecordScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
+                    // Message depends on state: no permission → ask; idle → prompt; recording → waiting on GPS.
                     if (!permission.status.isGranted) "Location permission required"
                     else if (!recordViewModel.isRecording) "Press play to start tracking"
                     else "Waiting for GPS fix...",
@@ -414,12 +415,13 @@ fun RecordScreen(
                     ) {
                         IconButton(
                             onClick = {
+                                // Center button: request permission, else pause/resume the timer.
                                 if (!permission.status.isGranted) {
-                                    permission.launchPermissionRequest()
+                                    permission.launchPermissionRequest() // can't record without location
                                 } else if (recordViewModel.isRecording) {
-                                    recordViewModel.pause()
+                                    recordViewModel.pause()           // currently running → pause
                                 } else {
-                                    recordViewModel.start()
+                                    recordViewModel.start()           // idle/paused → start/resume
                                 }
                             }
                         ) {
@@ -440,19 +442,21 @@ fun RecordScreen(
                         ) {
                             IconButton(
                                 onClick = {
+                                    // End the run: pause, open the summary sheet, and render a
+                                    // map snapshot of the route to show on the summary card.
                                     recordViewModel.pause()
-                                    showSummary = true
-                                    snapshotLoading = true
+                                    showSummary = true                // open the RunSummarySheet
+                                    snapshotLoading = true            // show a spinner until the snapshot is ready
                                     snapshot = null
-                                    snapshotter = captureRouteSnapshot(
+                                    snapshotter = captureRouteSnapshot( // off-screen render of the route map
                                         context = context,
                                         points = recordViewModel.path,
                                         styleUrl = styleUrls[styleIndex],
                                         colorHex = trailColorHex,
-                                        segmentColors = paceSegmentColors(recordViewModel.path),
+                                        segmentColors = paceSegmentColors(recordViewModel.path), // pace-coloured trail
                                     ) { bmp ->
-                                        snapshot = bmp
-                                        snapshotLoading = false
+                                        snapshot = bmp               // store the finished bitmap
+                                        snapshotLoading = false      // hide the spinner
                                     }
                                 }
                             ) {
@@ -467,15 +471,17 @@ fun RecordScreen(
     }
 }
 
+// One big-number stat (value on top, caption below) in the live stats card.
 @Composable
 fun RecordStatItem(value: String, label: String) {
     val colors = MaterialTheme.colorScheme
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = colors.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text(label, color = colors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = colors.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Bold)      // the number
+        Text(label, color = colors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Bold) // its caption
     }
 }
 
+// A round floating map button (layers / 3D / recenter) on the map's right edge.
 @Composable
 fun RecordMapActionButton(icon: ImageVector, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme

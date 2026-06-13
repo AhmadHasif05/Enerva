@@ -69,12 +69,12 @@ fun SearchScreen(
     userViewModel: UserViewModel = viewModel(),
     messageViewModel: MessageViewModel = viewModel()
 ) {
-    val tabTitles = listOf("Friends", "Group")
-    var selectedTab by remember { mutableStateOf(0) }
-    var searchText by remember { mutableStateOf("") }
-    val colors = MaterialTheme.colorScheme
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    val tabTitles = listOf("Friends", "Group")               // the two discovery tabs
+    var selectedTab by remember { mutableStateOf(0) }         // 0 = Friends, 1 = Group
+    var searchText by remember { mutableStateOf("") }         // current search query text
+    val colors = MaterialTheme.colorScheme                    // theme palette
+    val snackbarHostState = remember { SnackbarHostState() }  // hosts undo/confirmation snackbars
+    val scope = rememberCoroutineScope()                      // for launching snackbar coroutines
 
     // "New Group" dialog — shared with MessageScreen's flow via createGroup().
     var showGroupDialog by remember { mutableStateOf(false) }
@@ -112,6 +112,8 @@ fun SearchScreen(
             "Runner on Enerva"
         )
     }
+    // Real users first, then curated suggestions; de-duplicate by name so a real
+    // account doesn't appear twice if it shares a name with a curated entry.
     val people = (registeredPeople + curatedPeople).distinctBy { it.first }
 
     // Suggested groups the user can one-tap join. Each entry carries default
@@ -219,24 +221,25 @@ fun SearchScreen(
                     people = people,
                     searchText = searchText,
                     userViewModel = userViewModel,
-                    onOpenProfile = { name -> navController.navigate(userGalleryRoute(name)) },
+                    onOpenProfile = { name -> navController.navigate(userGalleryRoute(name)) }, // tap a person → their gallery
                     onFollow = { name ->
-                        val wasFollowing = userViewModel.isFollowing(name)
-                        userViewModel.toggleFollow(name)
-                        if (!wasFollowing) {
-                            messageViewModel.startConversationWith(name)
+                        val wasFollowing = userViewModel.isFollowing(name) // capture state before toggling
+                        userViewModel.toggleFollow(name)                   // follow ⇆ unfollow
+                        if (!wasFollowing) {                               // we just FOLLOWED them:
+                            messageViewModel.startConversationWith(name)   // seed a chat so they appear in Messages
                             scope.launch {
+                                // Confirmation snackbar with a shortcut into the new chat.
                                 val result = snackbarHostState.showSnackbar(
                                     message = "You are now following $name",
                                     actionLabel = "Message",
                                     duration = SnackbarDuration.Short
                                 )
-                                if (result == SnackbarResult.ActionPerformed) {
-                                    navController.navigate(chatRoute(name))
+                                if (result == SnackbarResult.ActionPerformed) { // tapped "Message"
+                                    navController.navigate(chatRoute(name))     // → open the chat
                                 }
                             }
-                        } else {
-                            messageViewModel.removeConversation(name)
+                        } else {                                          // we just UNFOLLOWED them:
+                            messageViewModel.removeConversation(name)      // drop the seeded chat
                         }
                     }
                 )
@@ -289,11 +292,12 @@ private fun ColumnScope.FriendsContent(
             .weight(1f)
             .padding(horizontal = 8.dp)
     ) {
+        // Case-insensitive name filter against the current search query.
         val filteredPeople = people.filter { (name, _, _) ->
             name.contains(searchText, ignoreCase = true)
         }
 
-        if (filteredPeople.isEmpty() && searchText.isNotEmpty()) {
+        if (filteredPeople.isEmpty() && searchText.isNotEmpty()) { // searched but nothing matched
             item {
                 Box(
                     modifier = Modifier
