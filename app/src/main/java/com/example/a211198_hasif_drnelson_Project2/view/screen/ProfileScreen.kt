@@ -1,8 +1,10 @@
 package com.example.a211198_hasif_drnelson_Project2.view.screen
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -26,9 +28,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,17 +45,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -70,7 +79,7 @@ import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 //    Saved section, and the multi-select gallery grid).
 //  - authorName != null  → another user's profile: avatar + name + stats + a single
 //    Follow/Following button, a read-only gallery, and no Edit/Logout/Saved.
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProfileScreen(
     userViewModel: UserViewModel,
@@ -96,6 +105,12 @@ fun ProfileScreen(
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val isFollowing = userViewModel.isFollowing(userData.runnerName)
+
+    // Multi-select state for the own gallery grid (self mode only).
+    val selectedIds = remember { mutableStateMapOf<String, Boolean>() }
+    var selectionMode by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val selectedCount = selectedIds.count { it.value }
 
     // Pick the gallery mode: my own posts vs. the visited user's posts.
     LaunchedEffect(isSelf, userData.email, userData.runnerName) {
@@ -277,13 +292,46 @@ fun ProfileScreen(
 
             // Gallery section — Instagram-style 3-column image grid. Latest at the top.
             Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                Text(
-                    "Gallery",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+                // Header doubles as a selection action bar when selecting (self only).
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isSelf && selectionMode) {
+                        IconButton(onClick = {
+                            selectionMode = false
+                            selectedIds.clear()
+                        }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Cancel selection", tint = MaterialTheme.colorScheme.onBackground)
+                        }
+                        Text(
+                            "$selectedCount selected",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = { if (selectedCount > 0) showDeleteConfirm = true },
+                            enabled = selectedCount > 0
+                        ) {
+                            Icon(
+                                Icons.Rounded.Delete,
+                                contentDescription = "Delete selected",
+                                tint = if (selectedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Text(
+                            "Gallery",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 val gallery = galleryViewModel.reels
                 if (gallery.isEmpty()) {
@@ -302,13 +350,29 @@ fun ProfileScreen(
                         gallery.chunked(3).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                 row.forEach { item ->
+                                    val isChecked = selectedIds[item.id] == true
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
                                             .aspectRatio(1f)
-                                            .clickable {
-                                                navController.navigate(userGalleryRoute(item.author))
-                                            }
+                                            .combinedClickable(
+                                                onClick = {
+                                                    if (isSelf && selectionMode) {
+                                                        if (isChecked) selectedIds.remove(item.id)
+                                                        else selectedIds[item.id] = true
+                                                        // Leaving selection mode when nothing is left selected.
+                                                        if (selectedIds.none { it.value }) selectionMode = false
+                                                    } else {
+                                                        navController.navigate(userGalleryRoute(item.author))
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    if (isSelf) {
+                                                        selectionMode = true
+                                                        selectedIds[item.id] = true
+                                                    }
+                                                }
+                                            )
                                     ) {
                                         AsyncImage(
                                             model = item.imageUri ?: item.imageRes,
@@ -316,6 +380,23 @@ fun ProfileScreen(
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
                                         )
+                                        if (isSelf && selectionMode) {
+                                            // Dim + check overlay on every tile while selecting.
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color.Black.copy(alpha = if (isChecked) 0.35f else 0.0f))
+                                            )
+                                            Icon(
+                                                if (isChecked) Icons.Rounded.Check else Icons.Rounded.RadioButtonUnchecked,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(6.dp)
+                                                    .size(20.dp)
+                                            )
+                                        }
                                     }
                                 }
                                 repeat(3 - row.size) {
@@ -325,6 +406,27 @@ fun ProfileScreen(
                         }
                     }
                 }
+            }
+
+            // Confirm dialog for deleting the selected posts.
+            if (showDeleteConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteConfirm = false },
+                    title = { Text("Delete ${selectedCount} post(s)?") },
+                    text = { Text("This removes them from your gallery on all your devices. This can't be undone.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val ids = selectedIds.filter { it.value }.keys.toSet()
+                            galleryViewModel.deletePosts(ids)
+                            selectedIds.clear()
+                            selectionMode = false
+                            showDeleteConfirm = false
+                        }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                    }
+                )
             }
 
             // Saved section — own profile only.
