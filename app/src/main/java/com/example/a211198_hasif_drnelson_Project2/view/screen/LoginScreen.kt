@@ -43,13 +43,13 @@ fun LoginScreen(
     onForgotPassword: (String, (Boolean, String?) -> Unit) -> Unit = { _, cb -> cb(false, "Not wired") },
     loginViewModel: LoginViewModel = viewModel()                   // Form state lives here so it survives rotation
 ) {
-    val email = loginViewModel.email
-    val password = loginViewModel.password
-    val isValid = loginViewModel.isValid
-    var passwordVisible by remember { mutableStateOf(false) }
-    var showForgotDialog by remember { mutableStateOf(false) }
+    val email = loginViewModel.email                          // typed email (ViewModel-owned)
+    val password = loginViewModel.password                    // typed password
+    val isValid = loginViewModel.isValid                      // true → enables Continue
+    var passwordVisible by remember { mutableStateOf(false) }  // eye-toggle for the password field
+    var showForgotDialog by remember { mutableStateOf(false) } // whether the reset dialog is open
 
-    if (showForgotDialog) {
+    if (showForgotDialog) {                                   // only compose the dialog when requested
         ForgotPasswordDialog(
             initialEmail = email,
             onDismiss = { showForgotDialog = false },
@@ -262,9 +262,9 @@ private fun ForgotPasswordDialog(
     onDismiss: () -> Unit,
     onSend: (String, (Boolean, String?) -> Unit) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var dialogEmail by remember { mutableStateOf(initialEmail) }
-    var sending by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current // for Toasts
+    var dialogEmail by remember { mutableStateOf(initialEmail) }     // editable email, seeded from the login field
+    var sending by remember { mutableStateOf(false) }               // true while the reset request is in flight
 
     AlertDialog(
         onDismissRequest = { if (!sending) onDismiss() },
@@ -289,12 +289,12 @@ private fun ForgotPasswordDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = !sending && dialogEmail.contains('@'),
+                enabled = !sending && dialogEmail.contains('@'), // need a plausible email and not already sending
                 onClick = {
-                    sending = true
-                    onSend(dialogEmail.trim()) { success, error ->
+                    sending = true                            // show the "Sending..." label, block re-taps
+                    onSend(dialogEmail.trim()) { success, error -> // callback fires when the reset request returns
                         sending = false
-                        if (success) {
+                        if (success) {                        // toast + close on success
                             android.widget.Toast.makeText(
                                 context,
                                 "Reset email sent. Check your inbox.",

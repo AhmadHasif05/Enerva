@@ -34,14 +34,16 @@ fun SignupScreen(
     onSignupComplete: (String, String, String) -> Unit = { _, _, _ -> },           // (name, email, password) — caller registers + navigates
     signupViewModel: SignupViewModel = viewModel()                                 // Form state lives here
 ) {
-    val name = signupViewModel.name
-    val email = signupViewModel.email
-    val password = signupViewModel.password
-    val confirmPassword = signupViewModel.confirmPassword
-    val isValid = signupViewModel.isValid
+    // Read the form fields straight from the ViewModel (it owns the form state).
+    val name = signupViewModel.name                          // typed runner name
+    val email = signupViewModel.email                        // typed email
+    val password = signupViewModel.password                  // typed password
+    val confirmPassword = signupViewModel.confirmPassword    // typed confirmation
+    val isValid = signupViewModel.isValid                    // true when all rules pass → enables Sign Up
+    // Only warn about a mismatch once the user has typed something in the confirm box.
     val showMismatch = confirmPassword.isNotEmpty() && !signupViewModel.passwordsMatch
-    var passwordVisible by remember { mutableStateOf(false) }
-    var confirmVisible by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }  // toggles the password field's masking
+    var confirmVisible by remember { mutableStateOf(false) }   // toggles the confirm field's masking
 
     Scaffold(
         topBar = {
@@ -142,9 +144,10 @@ fun SignupScreen(
                     focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                // Show plain text when visible, otherwise mask with dots.
                 visualTransformation = if (passwordVisible) VisualTransformation.None
                                        else PasswordVisualTransformation(),
-                trailingIcon = {
+                trailingIcon = {                              // eye icon toggles masking
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Filled.Visibility
@@ -166,8 +169,8 @@ fun SignupScreen(
                 onValueChange = signupViewModel::onConfirmPasswordChange,
                 label = { Text("Confirm Password", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 modifier = Modifier.fillMaxWidth(),
-                isError = showMismatch,
-                supportingText = if (showMismatch) { { Text("Passwords don't match") } } else null,
+                isError = showMismatch,                       // red outline when the two passwords differ
+                supportingText = if (showMismatch) { { Text("Passwords don't match") } } else null, // inline warning text
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = MaterialTheme.colorScheme.onBackground,
                     unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
