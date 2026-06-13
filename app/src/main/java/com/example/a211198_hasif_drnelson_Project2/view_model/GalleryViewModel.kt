@@ -100,6 +100,13 @@ class GalleryViewModel(
         }
     }
 
+    /** Delete the given posts (own gallery multi-select). */
+    fun deletePosts(ids: Set<String>) {
+        val email = activeEmail.ifBlank { return }
+        if (ids.isEmpty()) return
+        viewModelScope.launch { repository.deletePosts(email, ids) }
+    }
+
     fun clearActiveUser() {
         observeJob?.cancel()
         repository.stopSync()

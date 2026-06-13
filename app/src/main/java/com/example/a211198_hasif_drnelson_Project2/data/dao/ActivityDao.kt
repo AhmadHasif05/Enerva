@@ -45,4 +45,8 @@ interface ActivityDao {
     // showing the old author name after the user renames themselves.
     @Query("UPDATE media SET author = :newName WHERE author = :oldName")
     suspend fun renameAuthor(oldName: String, newName: String)
+
+    // Delete reels by id (used by the profile multi-select delete).
+    @Query("DELETE FROM media WHERE id IN (:ids)")
+    suspend fun deleteMediaByIds(ids: List<String>)
 }

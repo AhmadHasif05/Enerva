@@ -8,6 +8,7 @@ import com.example.a211198_hasif_drnelson_Project2.data.cloud.MediaDoc
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.PublicReelDoc
 import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity
 import com.google.firebase.firestore.Blob
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.CoroutineScope
@@ -101,6 +102,24 @@ class GalleryRepository(
     }
 
     /**
+     * Delete the given reels for the active user: Room first (so the grid updates
+     * immediately), then the cloud copies (private + public) and the cached image
+     * file. Cloud deletes are best-effort.
+     */
+    suspend fun deletePosts(email: String, ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        activityDao.deleteMediaByIds(ids.toList())
+        ids.forEach { id -> File(File(cacheDir, "remote_reels"), "$id.jpg").delete() }
+        val uid = userDao.findByEmail(email)?.firebaseUid ?: return
+        runCatching {
+            for (id in ids) {
+                firestore.collection(USERS).document(uid).collection(MEDIA).document(id).delete().await()
+                firestore.collection(PUBLIC_REELS).document(id).delete().await()
+            }
+        }
+    }
+
+    /**
      * Write a reel (already in Room) through to Firestore: the private copy under
      * users/{uid}/media and the public copy in publicReels, both carrying the
      * compressed image as a Blob. Best-effort — the local write already succeeded.
@@ -136,8 +155,13 @@ class GalleryRepository(
                 .addSnapshotListener { snap, _ ->
                     snap ?: return@addSnapshotListener
                     scope.launch {
-                        for (doc in snap.documents) {
-                            val m = doc.toObject(MediaDoc::class.java) ?: continue
+                        for (change in snap.documentChanges) {
+                            val m = change.document.toObject(MediaDoc::class.java)
+                            if (change.type == DocumentChange.Type.REMOVED) {
+                                activityDao.deleteMediaByIds(listOf(m.id))
+                                File(File(cacheDir, "remote_reels"), "${m.id}.jpg").delete()
+                                continue
+                            }
                             // Own-post guard: if this device already holds the post
                             // with a local image path, keep it (don't clobber the
                             // crisp local file with the re-encoded blob). On a fresh
@@ -165,9 +189,14 @@ class GalleryRepository(
                 .addSnapshotListener { snap, _ ->
                     snap ?: return@addSnapshotListener
                     scope.launch {
-                        for (doc in snap.documents) {
-                            val r = doc.toObject(PublicReelDoc::class.java) ?: continue
+                        for (change in snap.documentChanges) {
+                            val r = change.document.toObject(PublicReelDoc::class.java)
                             if (r.ownerUid.isBlank() || r.ownerUid == myUid) continue
+                            if (change.type == DocumentChange.Type.REMOVED) {
+                                activityDao.deleteMediaByIds(listOf(r.id))
+                                File(File(cacheDir, "remote_reels"), "${r.id}.jpg").delete()
+                                continue
+                            }
                             val cachePath = r.imageBlob?.toBytes()?.let { writeReelCache(r.id, it) }
                             activityDao.insertMedia(r.toEntity(imageUriOverride = cachePath))
                         }
