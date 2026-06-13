@@ -17,6 +17,7 @@ val localProps = Properties().apply {
 }
 val googleWebClientId: String = localProps.getProperty("GOOGLE_WEB_CLIENT_ID", "")
 val mapTilerApiKey: String = localProps.getProperty("MAPTILER_API_KEY", "")
+val foursquareApiKey: String = localProps.getProperty("FOURSQUARE_API_KEY", "")
 
 android {
     namespace = "com.example.a211198_hasif_drnelson_Project2"
@@ -37,6 +38,7 @@ android {
 
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         buildConfigField("String", "MAPTILER_API_KEY", "\"$mapTilerApiKey\"")
+        buildConfigField("String", "FOURSQUARE_API_KEY", "\"$foursquareApiKey\"")
     }
 
     buildTypes {
