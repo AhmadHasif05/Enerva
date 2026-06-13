@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -88,20 +89,22 @@ fun RunSummaryCard(
             }
         }
 
-        // Top + bottom scrim so the white wordmark and the chip stay legible over
-        // any image.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.25f),
-                        0.35f to Color.Transparent,
-                        0.7f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.45f)
+        if (hero != null && !snapshotLoading) {
+            // Top + bottom scrim so the white wordmark and the chip stay legible over
+            // any image.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.25f),
+                            0.35f to Color.Transparent,
+                            0.7f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.45f)
+                        )
                     )
-                )
-        )
+            )
+        }
 
         // ENERVA wordmark, top-left.
         Text(
@@ -197,7 +200,14 @@ private fun ChipStat(icon: ImageVector, label: String, value: String, modifier: 
             letterSpacing = 0.5.sp,
             fontWeight = FontWeight.Medium
         )
-        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+        Text(
+            value,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
