@@ -2,6 +2,7 @@ package com.example.a211198_hasif_drnelson_Project2.view.screen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.AlertDialog
@@ -58,6 +60,8 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.a211198_hasif_drnelson_Project2.model.GalleryActivity
+import com.example.a211198_hasif_drnelson_Project2.view.Screen
+import com.example.a211198_hasif_drnelson_Project2.view.userProfileRoute
 import com.example.a211198_hasif_drnelson_Project2.view_model.GalleryViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
@@ -140,12 +144,18 @@ fun GalleryScreen(
             // Read follow state here so Compose tracks the read and this page
             // recomposes when toggleFollow mutates the underlying state map.
             val following = userViewModel.isFollowing(reel.author)
+            val authorPhoto = userViewModel.photoForAuthor(reel.author)
             ReelPage(
                 reel = reel,
                 isMine = reel.author == myName,
+                authorPhoto = authorPhoto,
                 isLiked = liked[reel.id] == true,
                 likeBump = likeBumps[reel.id] ?: 0,
                 isFollowing = following,
+                onAuthorClick = {
+                    if (reel.author == myName) navController?.navigate(Screen.Profile.route)
+                    else navController?.navigate(userProfileRoute(reel.author))
+                },
                 onLike = {
                     val now = liked[reel.id] != true
                     liked[reel.id] = now
@@ -182,9 +192,11 @@ fun GalleryScreen(
 private fun ReelPage(
     reel: GalleryActivity,
     isMine: Boolean,
+    authorPhoto: String?,
     isLiked: Boolean,
     likeBump: Int,
     isFollowing: Boolean,
+    onAuthorClick: () -> Unit,
     onLike: () -> Unit,
     onFollow: () -> Unit
 ) {
@@ -249,19 +261,40 @@ private fun ReelPage(
                 .padding(start = 16.dp, end = 96.dp, bottom = 32.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f))
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    reel.author,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onAuthorClick() }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f))
+                    ) {
+                        if (authorPhoto != null) {
+                            AsyncImage(
+                                model = authorPhoto,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                Icons.Rounded.Person,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.fillMaxSize().padding(6.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        reel.author,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
                 Spacer(modifier = Modifier.width(12.dp))
                 // Don't show "Follow" on your own reel.
                 if (!isMine) {

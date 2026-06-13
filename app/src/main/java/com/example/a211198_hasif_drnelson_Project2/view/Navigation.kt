@@ -39,6 +39,8 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object Chat : Screen("chat/{friendName}", "Chat", Icons.Rounded.Email)
     // Viewing another user's gallery. Use userGalleryRoute(name) to build it.
     object UserGallery : Screen("gallery/user/{authorName}", "User Gallery", Icons.Rounded.Movie)
+    // Viewing another user's profile. Use userProfileRoute(name) to build it.
+    object UserProfile : Screen("profile/user/{authorName}", "User Profile", Icons.Rounded.Person)
 }
 
 // Build a concrete chat route for a given friend.
@@ -47,6 +49,10 @@ fun chatRoute(friendName: String): String = "chat/${java.net.URLEncoder.encode(f
 // Build a route to view a specific user's personal gallery.
 fun userGalleryRoute(authorName: String): String =
     "gallery/user/${java.net.URLEncoder.encode(authorName, "UTF-8")}"
+
+// Build a route to view a specific user's profile (Follow-only, read-only gallery).
+fun userProfileRoute(authorName: String): String =
+    "profile/user/${java.net.URLEncoder.encode(authorName, "UTF-8")}"
 
 // List of screens shown in the bottom navigation bar (5 tabs).
 val bottomNavItems = listOf(
