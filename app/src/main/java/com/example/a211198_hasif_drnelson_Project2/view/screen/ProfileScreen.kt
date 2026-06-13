@@ -354,7 +354,7 @@ fun ProfileScreen(
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .aspectRatio(1f)
+                                            .aspectRatio(4f / 5f)
                                             .combinedClickable(
                                                 onClick = {
                                                     if (isSelf && selectionMode) {
@@ -400,7 +400,7 @@ fun ProfileScreen(
                                     }
                                 }
                                 repeat(3 - row.size) {
-                                    Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                                    Box(modifier = Modifier.weight(1f).aspectRatio(4f / 5f))
                                 }
                             }
                         }
