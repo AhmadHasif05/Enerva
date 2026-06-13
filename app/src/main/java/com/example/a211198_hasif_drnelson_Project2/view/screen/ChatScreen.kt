@@ -2,6 +2,8 @@ package com.example.a211198_hasif_drnelson_Project2.view.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -10,8 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +29,8 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.a211198_hasif_drnelson_Project2.model.Message
 import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -86,6 +92,15 @@ fun ChatScreen(
                         )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { messageViewModel.refresh() }) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh messages",
+                            tint = colors.onBackground
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background)
             )
         },
@@ -103,27 +118,45 @@ fun ChatScreen(
             )
         }
     ) { innerPadding ->
-        if (conversation.messages.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Say hi to $friendName!", color = colors.onSurfaceVariant)
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 12.dp)
-            ) {
-                items(conversation.messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+        var isRefreshing by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                messageViewModel.refresh()
+                // The re-attached Firestore listeners deliver asynchronously; hold the
+                // spinner briefly so the gesture reads as "pulling new messages".
+                scope.launch {
+                    delay(800)
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (conversation.messages.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Say hi to $friendName!", color = colors.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
+                ) {
+                    items(conversation.messages, key = { it.id }) { message ->
+                        MessageBubble(message)
+                    }
                 }
             }
         }

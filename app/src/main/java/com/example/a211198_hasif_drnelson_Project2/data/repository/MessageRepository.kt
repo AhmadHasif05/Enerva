@@ -1,5 +1,6 @@
 package com.example.a211198_hasif_drnelson_Project2.data.repository
 
+import android.util.Log
 import com.example.a211198_hasif_drnelson_Project2.data.AppDatabase
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.ConversationDoc
 import com.example.a211198_hasif_drnelson_Project2.data.cloud.FirestoreCollections.CONVERSATIONS
@@ -45,6 +46,9 @@ class MessageRepository(
 ) {
     private val messageDao = db.messageDao()
     private val userDao = db.userDao()
+
+    // Diagnostic tag for cross-device sync. Filter logcat with: adb logcat -s MsgSync
+    private val tag = "MsgSync"
 
     // Top-level "my conversations" listener.
     private var conversationsListener: ListenerRegistration? = null
@@ -105,10 +109,19 @@ class MessageRepository(
         )
 
         // Cloud write — only if we and the conversation have a cloud identity.
-        val myUid = userDao.findByEmail(ownerEmail)?.firebaseUid ?: return
+        val myUid = userDao.findByEmail(ownerEmail)?.firebaseUid
+        if (myUid == null) {
+            Log.w(tag, "send: '$ownerEmail' has no firebaseUid → message stays LOCAL-ONLY (other device won't see it)")
+            return
+        }
         val resolved = resolveParticipants(ownerEmail, friendName, isGroup, existing?.membersCsv.orEmpty(), myUid)
-            ?: return // no resolvable cloud counterpart → stay local-only (e.g. demo user)
+        if (resolved == null) {
+            // no resolvable cloud counterpart → stay local-only (e.g. demo user)
+            Log.w(tag, "send: cannot resolve a cloud uid for '$friendName' (not in users/directory) → message stays LOCAL-ONLY")
+            return
+        }
         val (participants, participantNames) = resolved
+        Log.i(tag, "send: uploading msg $msgId to conversations/$cid, participants=$participants")
 
         val convoRef = firestore.collection(CONVERSATIONS).document(cid)
         runCatching {
@@ -125,6 +138,10 @@ class MessageRepository(
             ).await()
             convoRef.collection(MESSAGES).document(msgId)
                 .set(MessageDoc(msgId, myUid, body, now)).await()
+        }.onSuccess {
+            Log.i(tag, "send: Firestore write OK for $cid / msg $msgId")
+        }.onFailure {
+            Log.e(tag, "send: Firestore write FAILED for $cid (rules denied? offline?)", it)
         }
     }
 
@@ -193,11 +210,21 @@ class MessageRepository(
     fun startSync(scope: CoroutineScope, ownerEmail: String) {
         stopSync()
         scope.launch {
-            val myUid = userDao.findByEmail(ownerEmail)?.firebaseUid ?: return@launch
+            val myUid = userDao.findByEmail(ownerEmail)?.firebaseUid
+            if (myUid == null) {
+                Log.w(tag, "startSync: '$ownerEmail' has no firebaseUid → cannot receive cloud messages")
+                return@launch
+            }
+            Log.i(tag, "startSync: listening for conversations containing uid=$myUid")
             conversationsListener = firestore.collection(CONVERSATIONS)
                 .whereArrayContains("participants", myUid)
-                .addSnapshotListener { snap, _ ->
+                .addSnapshotListener { snap, err ->
+                    if (err != null) {
+                        Log.e(tag, "conversations listen FAILED (rules denied read? auth?)", err)
+                        return@addSnapshotListener
+                    }
                     snap ?: return@addSnapshotListener
+                    Log.i(tag, "conversations snapshot: ${snap.documents.size} doc(s) for uid=$myUid")
                     for (doc in snap.documents) {
                         val convo = doc.toObject(ConversationDoc::class.java) ?: continue
                         val cid = doc.id
@@ -219,10 +246,19 @@ class MessageRepository(
         if (messageListeners.containsKey(cid)) return
         messageListeners[cid] = firestore.collection(CONVERSATIONS).document(cid)
             .collection(MESSAGES)
-            .addSnapshotListener { snap, _ ->
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    Log.e(tag, "messages listen FAILED for $cid (rules denied read?)", err)
+                    return@addSnapshotListener
+                }
                 snap ?: return@addSnapshotListener
                 scope.launch {
-                    val convo = messageDao.findConversationByCloudId(cid) ?: return@launch
+                    val convo = messageDao.findConversationByCloudId(cid)
+                    if (convo == null) {
+                        Log.w(tag, "messages: no local convo row for $cid yet → ${snap.documents.size} msg(s) skipped this round")
+                        return@launch
+                    }
+                    Log.i(tag, "messages snapshot for $cid (${convo.friendName}): ${snap.documents.size} doc(s)")
                     for (mDoc in snap.documents) {
                         val m = mDoc.toObject(MessageDoc::class.java) ?: continue
                         messageDao.insertMessage(

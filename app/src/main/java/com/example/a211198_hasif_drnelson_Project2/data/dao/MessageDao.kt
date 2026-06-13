@@ -37,7 +37,7 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE ownerEmail = :ownerEmail AND friendName = :friendName ORDER BY timestampMs ASC")
     fun observeMessages(ownerEmail: String, friendName: String): Flow<List<MessageEntity>>
 
-    @Query("SELECT * FROM messages WHERE ownerEmail = :ownerEmail")
+    @Query("SELECT * FROM messages WHERE ownerEmail = :ownerEmail ORDER BY timestampMs ASC")
     fun observeAllMessages(ownerEmail: String): Flow<List<MessageEntity>>
 
     // Display-name propagation: when a user renames themselves, update the rows

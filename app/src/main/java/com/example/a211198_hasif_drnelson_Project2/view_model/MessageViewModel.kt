@@ -66,6 +66,16 @@ class MessageViewModel(
     fun getConversation(friendName: String): Conversation =
         conversations[friendName] ?: Conversation(friendName)
 
+    /**
+     * Manual re-sync, triggered by pull-to-refresh. Tears down and re-attaches the
+     * Firestore listeners so the next snapshot re-delivers the full conversation +
+     * message set (recovers anything a transient listener race may have skipped).
+     */
+    fun refresh() {
+        val email = activeEmail.ifBlank { return }
+        startObserving(email)
+    }
+
     fun startConversationWith(friendName: String) {
         val owner = activeEmail.ifBlank { return }
         if (conversations.containsKey(friendName)) return
