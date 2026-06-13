@@ -49,7 +49,7 @@ Expected on success: `BUILD SUCCESSFUL`.
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/GalleryViewModel.kt`
 
-- [ ] **Step 1: Add the delete query to `ActivityDao`**
+- [x] **Step 1: Add the delete query to `ActivityDao`**
 
 In `ActivityDao.kt`, add this method inside the `interface ActivityDao` (e.g. after `renameAuthor`):
 
@@ -59,7 +59,7 @@ In `ActivityDao.kt`, add this method inside the `interface ActivityDao` (e.g. af
     suspend fun deleteMediaByIds(ids: List<String>)
 ```
 
-- [ ] **Step 2: Add `deletePosts` + `REMOVED` handling to `GalleryRepository`**
+- [x] **Step 2: Add `deletePosts` + `REMOVED` handling to `GalleryRepository`**
 
 In `GalleryRepository.kt`, add the import near the other firestore imports:
 
@@ -173,7 +173,7 @@ with:
                 }
 ```
 
-- [ ] **Step 3: Add `deletePosts` to `GalleryViewModel`**
+- [x] **Step 3: Add `deletePosts` to `GalleryViewModel`**
 
 In `GalleryViewModel.kt`, add after `createPost(...)`:
 
@@ -186,7 +186,7 @@ In `GalleryViewModel.kt`, add after `createPost(...)`:
     }
 ```
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run:
 ```bash
@@ -195,7 +195,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/dao/ActivityDao.kt \
@@ -213,7 +213,7 @@ git commit -m "feat: delete plumbing for reels (Room + Firestore + REMOVED sync)
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/UserRepository.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/RunTrackApplication.kt`
 
-- [ ] **Step 1: Add `photoBlob` to `PublicProfileDoc`**
+- [x] **Step 1: Add `photoBlob` to `PublicProfileDoc`**
 
 In `FirestoreSchema.kt`, update `PublicProfileDoc`:
 
@@ -234,7 +234,7 @@ data class PublicProfileDoc(
 
 (`Blob` is already imported at the top of this file.)
 
-- [ ] **Step 2: Inject `cacheDir` into `UserRepository` and add avatar upload + decode**
+- [x] **Step 2: Inject `cacheDir` into `UserRepository` and add avatar upload + decode**
 
 In `UserRepository.kt`, add imports near the others:
 
@@ -355,7 +355,7 @@ Replace `pushProfile` with a version that takes `avatarBytes` and writes `public
     }
 ```
 
-- [ ] **Step 3: Pass `cacheDir` in `RunTrackApplication`**
+- [x] **Step 3: Pass `cacheDir` in `RunTrackApplication`**
 
 In `RunTrackApplication.kt`, change the `userRepository` line:
 
@@ -363,7 +363,7 @@ In `RunTrackApplication.kt`, change the `userRepository` line:
     val userRepository: UserRepository by lazy { UserRepository(AppDatabase.get(this), cacheDir) }
 ```
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run:
 ```bash
@@ -372,7 +372,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/cloud/FirestoreSchema.kt \
@@ -390,7 +390,7 @@ git commit -m "feat: cross-device avatar blob sync on publicProfiles"
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/UserViewModel.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/EditProfile.kt`
 
-- [ ] **Step 1: Add `compressAvatarImage` next to `compressReelImage`**
+- [x] **Step 1: Add `compressAvatarImage` next to `compressReelImage`**
 
 In `RouteSnapshot.kt`, add this top-level function directly after `compressReelImage` (around line 212). It pre-scales to a small square-ish bound, then reuses the existing compressor:
 
@@ -413,7 +413,7 @@ fun compressAvatarImage(bitmap: Bitmap, maxDim: Int = 256): ByteArray? {
 }
 ```
 
-- [ ] **Step 2: Update `UserViewModel.updatePhotoUri` + add `photoForAuthor`**
+- [x] **Step 2: Update `UserViewModel.updatePhotoUri` + add `photoForAuthor`**
 
 In `UserViewModel.kt`, replace `updatePhotoUri`:
 
@@ -437,7 +437,7 @@ Add this read helper in the `// ---- follows ----` area (anywhere public in the 
         else otherUsers.firstOrNull { it.runnerName == name }?.photoUri
 ```
 
-- [ ] **Step 3: Encode the avatar in Edit Profile and pass the bytes**
+- [x] **Step 3: Encode the avatar in Edit Profile and pass the bytes**
 
 In `EditProfile.kt`, replace the `pickPhoto` result callback body so it compresses the chosen image and forwards the bytes:
 
@@ -469,7 +469,7 @@ In `EditProfile.kt`, replace the `pickPhoto` result callback body so it compress
 
 `compressAvatarImage` is a top-level function in the same `view.screen` package, so no import is needed.
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run:
 ```bash
@@ -478,7 +478,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RouteSnapshot.kt \
@@ -495,7 +495,7 @@ git commit -m "feat: compress + upload profile avatar; photoForAuthor helper"
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/Navigation.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/GalleryScreen.kt`
 
-- [ ] **Step 1: Add the UserProfile destination + route builder**
+- [x] **Step 1: Add the UserProfile destination + route builder**
 
 In `Navigation.kt`, add inside the `sealed class Screen` (after `UserGallery`):
 
@@ -512,7 +512,7 @@ fun userProfileRoute(authorName: String): String =
     "profile/user/${java.net.URLEncoder.encode(authorName, "UTF-8")}"
 ```
 
-- [ ] **Step 2: Show real reel avatars and make the author bar tappable**
+- [x] **Step 2: Show real reel avatars and make the author bar tappable**
 
 In `GalleryScreen.kt`, add imports:
 
@@ -648,7 +648,7 @@ In `ReelPage`, replace the author `Row` (the one starting `Row(verticalAlignment
             }
 ```
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run:
 ```bash
@@ -657,7 +657,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/Navigation.kt \
@@ -675,7 +675,7 @@ git commit -m "feat: real reel avatars + tap author bar to open profile"
 
 This task makes `ProfileScreen` render either the current user (self) or another user (Follow-only, no Edit/Logout/Saved). The multi-select delete grid is added in Task 6 on top of this.
 
-- [ ] **Step 1: Replace `ProfileScreen.kt` with the dual-mode version**
+- [x] **Step 1: Replace `ProfileScreen.kt` with the dual-mode version**
 
 Replace the entire contents of `ProfileScreen.kt` with:
 
@@ -1052,7 +1052,7 @@ fun ProfileScreen(
 
 Note: `RouteCard` is defined elsewhere in the project and is already used by the current `ProfileScreen`; this rewrite keeps that call unchanged.
 
-- [ ] **Step 2: Wire `messageViewModel` + the UserProfile route in `MainActivity`**
+- [x] **Step 2: Wire `messageViewModel` + the UserProfile route in `MainActivity`**
 
 In `MainActivity.kt`, update the existing `Screen.Profile` composable to pass the shared `messageViewModel`:
 
@@ -1091,7 +1091,7 @@ Add a new composable for the UserProfile route (place it next to the `Screen.Use
             }
 ```
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run:
 ```bash
@@ -1100,7 +1100,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/ProfileScreen.kt \
@@ -1117,7 +1117,7 @@ git commit -m "feat: view other users' profiles (Follow-only) from reels"
 
 This adds long-press multi-select + a contextual bar + a confirm dialog to the **self** gallery grid only. The other-user grid stays tap-to-open (no selection).
 
-- [ ] **Step 1: Add imports**
+- [x] **Step 1: Add imports**
 
 In `ProfileScreen.kt`, add these imports:
 
@@ -1149,7 +1149,7 @@ to:
 fun ProfileScreen(
 ```
 
-- [ ] **Step 2: Add selection state**
+- [x] **Step 2: Add selection state**
 
 Inside `ProfileScreen`, just after the line `val isFollowing = userViewModel.isFollowing(userData.runnerName)`, add:
 
@@ -1161,7 +1161,7 @@ Inside `ProfileScreen`, just after the line `val isFollowing = userViewModel.isF
     val selectedCount = selectedIds.count { it.value }
 ```
 
-- [ ] **Step 3: Replace the Gallery section header + grid with the selection-aware version**
+- [x] **Step 3: Replace the Gallery section header + grid with the selection-aware version**
 
 Replace the whole `// Gallery section ...` `Column(modifier = Modifier.padding(vertical = 16.dp)) { ... }` block from Task 5 with this version. It swaps the header for a contextual action bar while selecting, and makes self-mode tiles long-pressable with a check overlay:
 
@@ -1306,7 +1306,7 @@ Replace the whole `// Gallery section ...` `Column(modifier = Modifier.padding(v
             }
 ```
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run:
 ```bash
@@ -1315,7 +1315,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/ProfileScreen.kt
