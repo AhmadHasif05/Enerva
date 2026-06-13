@@ -1,0 +1,29 @@
+package com.example.a211198_hasif_drnelson_Project2.data.remote
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class PlaceDtoMapperTest {
+
+    @Test fun photoUrl_concatenates_prefix_size_suffix() {
+        assertEquals(
+            "https://fastly.4sqi.net/img/general/400x300/abc.jpg",
+            photoUrl("https://fastly.4sqi.net/img/general/", "/abc.jpg", "400x300")
+        )
+    }
+
+    @Test fun formatDistance_under_1km_shows_meters() {
+        assertEquals("800 m away", formatDistance(800))
+    }
+
+    @Test fun formatDistance_at_or_over_1km_shows_one_decimal_km() {
+        assertEquals("1.2 km away", formatDistance(1200))
+        assertEquals("5.0 km away", formatDistance(5000))
+    }
+
+    @Test fun firstPhotoUrl_null_when_no_photos() {
+        val dto = PlaceDto(name = "X", distance = 100, categories = emptyList(), photos = emptyList())
+        assertNull(dto.firstPhotoUrl())
+    }
+}
