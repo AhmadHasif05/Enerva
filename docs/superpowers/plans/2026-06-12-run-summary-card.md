@@ -38,7 +38,7 @@ cd "C:/Users/hasif/AndroidStudioProjects/a211198_Hasif_DrNelson_Project2"
 - Create: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/PaceColors.kt`
 - Test: `app/src/test/java/com/example/a211198_hasif_drnelson_Project2/view_model/PaceColorsTest.kt`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `PaceColorsTest.kt`:
 
@@ -108,12 +108,12 @@ class PaceColorsTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `./gradlew testDebugUnitTest --tests "com.example.a211198_hasif_drnelson_Project2.view_model.PaceColorsTest"`
 Expected: FAIL — unresolved reference `paceColorAt` / `paceSegmentColors`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `PaceColors.kt`:
 
@@ -182,12 +182,12 @@ fun paceSegmentColors(points: List<TrackPoint>): List<String> {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `./gradlew testDebugUnitTest --tests "com.example.a211198_hasif_drnelson_Project2.view_model.PaceColorsTest"`
 Expected: PASS (6 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/PaceColors.kt \
@@ -204,7 +204,7 @@ git commit -m "P5: pure pace->colour ramp for the run-summary route"
 
 Goal: `captureRouteSnapshot` accepts a per-segment colour list. When present, the route is drawn as a `lineGradient`; when empty, it falls back to today's single-colour line. Two endpoint markers (green START, red FINISH) are added in both cases.
 
-- [ ] **Step 1: Add the colours parameter and gradient/marker rendering**
+- [x] **Step 1: Add the colours parameter and gradient/marker rendering**
 
 Replace the body of `captureRouteSnapshot` in `RouteSnapshot.kt`. The new signature adds `segmentColors: List<String> = emptyList()` (defaulted, so existing callers still compile) and new imports. Full updated file region:
 
@@ -366,12 +366,12 @@ fun saveBitmapToInternalStorage(context: Context, bitmap: Bitmap): String {
 }
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL. (If `GeoJsonSource(name, geometry, options)` constructor resolution fails, use `GeoJsonSource("route-src", line).also { }` is NOT valid — instead keep the 3-arg form which exists in MapLibre Android 10+. If the `Expression.Stop` vararg overload is unresolved, the alternative is `Expression.interpolate(Expression.linear(), Expression.lineProgress(), *stops.toTypedArray())` already used here.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RouteSnapshot.kt
@@ -387,7 +387,7 @@ git commit -m "P5: snapshot paints route by pace + START/FINISH markers"
 
 The card = ENERVA header (solid StravaOrange) + map image (with FAST→SLOW legend) + dark icon stats footer. It takes an optional `GraphicsLayer` so the sheet can capture it.
 
-- [ ] **Step 1: Write the composable**
+- [x] **Step 1: Write the composable**
 
 Create `RunSummaryCard.kt`:
 
@@ -557,12 +557,12 @@ private fun PaceLegend(modifier: Modifier = Modifier) {
 }
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL. (`drawLayer`, `record`, `GraphicsLayer` are in `androidx.compose.ui.graphics.layer` — available in Compose 1.7 / BOM 2024.09.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RunSummaryCard.kt
@@ -578,7 +578,7 @@ git commit -m "P5: branded RunSummaryCard composable (header + map + stats foote
 
 The sheet swaps its inline map/stats for `RunSummaryCard`, keeps caption/toggle/buttons, and on Post captures the card via the shared `GraphicsLayer` (so the posted image is the branded card, not the bare map). The `onPost` contract changes from `(caption, includePhoto)` to `(caption, cardBitmap)` so the sheet — which owns the layer — does the capture.
 
-- [ ] **Step 1: Rewrite the sheet**
+- [x] **Step 1: Rewrite the sheet**
 
 Replace the whole contents of `RunSummarySheet.kt`:
 
@@ -697,12 +697,12 @@ fun RunSummarySheet(
 }
 ```
 
-- [ ] **Step 2: Compile (expected to fail at the call site)**
+- [x] **Step 2: Compile (expected to fail at the call site)**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: FAIL in `RecordScreen.kt` — `onPost` lambda signature no longer matches (it still references `includePhoto`). Fixed in Task 6. (If you are running tasks in order, you may defer this compile to Task 6; it is listed here so the change set is explicit.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RunSummarySheet.kt
@@ -716,7 +716,7 @@ git commit -m "P5: RunSummarySheet uses RunSummaryCard; Post captures the card b
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/RecordViewModel.kt`
 
-- [ ] **Step 1: Add `activityType` state + toggle**
+- [x] **Step 1: Add `activityType` state + toggle**
 
 In `RecordViewModel.kt`, add the state right after the `distanceKm` declaration (after line 48, before `val path`):
 
@@ -737,12 +737,12 @@ Then reset it in `reset()` — add this line inside `reset()` (e.g. after `path.
         activityType = "Run"
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL (the new state is not yet consumed; that is Task 6).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/RecordViewModel.kt
@@ -756,7 +756,7 @@ git commit -m "P5: RecordViewModel holds toggleable activityType (Run/Walk)"
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RecordScreen.kt`
 
-- [ ] **Step 1: Import the pace-colour helper**
+- [x] **Step 1: Import the pace-colour helper**
 
 Add to the imports block (near the other `view_model` imports around line 33-36):
 
@@ -764,7 +764,7 @@ Add to the imports block (near the other `view_model` imports around line 33-36)
 import com.example.a211198_hasif_drnelson_Project2.view_model.paceSegmentColors
 ```
 
-- [ ] **Step 2: Make the stats-header label reflect the type**
+- [x] **Step 2: Make the stats-header label reflect the type**
 
 Replace line 242:
 
@@ -778,7 +778,7 @@ with:
                         Text(recordViewModel.activityType, color = colors.onSurface, fontWeight = FontWeight.Bold)
 ```
 
-- [ ] **Step 3: Make the bottom chip a working toggle**
+- [x] **Step 3: Make the bottom chip a working toggle**
 
 Replace the activity chip `Column` (lines 352-371, the `Column` that contains the `DirectionsWalk` `Surface` and the `Text("Walk", …)`) with:
 
@@ -810,7 +810,7 @@ Replace the activity chip `Column` (lines 352-371, the `Column` that contains th
                     }
 ```
 
-- [ ] **Step 4: Pass pace colours into the snapshot call**
+- [x] **Step 4: Pass pace colours into the snapshot call**
 
 In the End button `onClick` (lines 411-419), update the `captureRouteSnapshot(...)` call to pass `segmentColors`:
 
@@ -827,7 +827,7 @@ In the End button `onClick` (lines 411-419), update the `captureRouteSnapshot(..
                                     }
 ```
 
-- [ ] **Step 5: Update the `RunSummarySheet` call to the new `onPost` contract**
+- [x] **Step 5: Update the `RunSummarySheet` call to the new `onPost` contract**
 
 Replace the `onPost` lambda (lines 305-315) with:
 
@@ -847,17 +847,17 @@ Replace the `onPost` lambda (lines 305-315) with:
                 },
 ```
 
-- [ ] **Step 6: Compile the whole app**
+- [x] **Step 6: Compile the whole app**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 7: Run the full unit-test suite**
+- [x] **Step 7: Run the full unit-test suite**
 
 Run: `./gradlew testDebugUnitTest`
 Expected: PASS (existing suite + the 6 new `PaceColorsTest` cases).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RecordScreen.kt
@@ -871,12 +871,12 @@ git commit -m "P5: wire Walk/Run toggle, type label, and pace-coloured snapshot"
 **Files:**
 - Modify: `plan.md` (roadmap)
 
-- [ ] **Step 1: Full debug build**
+- [x] **Step 1: Full debug build**
 
 Run: `./gradlew assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 2: Manual on-device verification (real phone — emulators give a fixed GPS point)**
+- [x] **Step 2: Manual on-device verification (real phone — emulators give a fixed GPS point)**
 
 Walk a short loop with a deliberately fast stretch and a slow stretch, then tap End. Confirm:
 - The summary card shows the **ENERVA** header, the route coloured green↔red along the fast/slow stretches, green START + red FINISH dots, the FAST→SLOW legend, and correct Duration / Distance / Pace.
@@ -885,7 +885,7 @@ Walk a short loop with a deliberately fast stretch and a slow stretch, then tap 
 - Toggle "Include route photo" **OFF** → Post still works, reel uses the drawable fallback.
 - **Discard** → nothing is saved.
 
-- [ ] **Step 3: Update the roadmap**
+- [x] **Step 3: Update the roadmap**
 
 In `plan.md`, under the **Phase 5 — Camera in Record** section, add a line recording this polish (the card + pace route + Walk/Run toggle shipped ahead of the camera work). Example addition after the Phase 5 list:
 
@@ -897,7 +897,7 @@ In `plan.md`, under the **Phase 5 — Camera in Record** section, add a line rec
 > Plan: docs/superpowers/plans/2026-06-12-run-summary-card.md
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add plan.md

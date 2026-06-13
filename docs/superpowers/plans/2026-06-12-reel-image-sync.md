@@ -35,7 +35,7 @@
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/cloud/FirestoreSchema.kt`
 
-- [ ] **Step 1: Add the import and the two fields to both DTOs**
+- [x] **Step 1: Add the import and the two fields to both DTOs**
 
 At the top of the file, under the `package` line, add:
 
@@ -84,12 +84,12 @@ data class PublicReelDoc(
 )
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL (the mappers in `GalleryRepository.kt` still compile — the new fields have defaults).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/cloud/FirestoreSchema.kt
@@ -104,7 +104,7 @@ git commit -m "P5: reel DTOs carry imageBlob + isCard for cross-device images"
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RouteSnapshot.kt`
 - Test: `app/src/androidTest/java/com/example/a211198_hasif_drnelson_Project2/view/screen/CompressReelImageTest.kt`
 
-- [ ] **Step 1: Write the failing instrumented test**
+- [x] **Step 1: Write the failing instrumented test**
 
 Create `app/src/androidTest/java/com/example/a211198_hasif_drnelson_Project2/view/screen/CompressReelImageTest.kt`:
 
@@ -154,12 +154,12 @@ class CompressReelImageTest {
 }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `./gradlew compileDebugAndroidTestKotlin`
 Expected: FAIL — `compressReelImage` is unresolved.
 
-- [ ] **Step 3: Implement `compressReelImage`**
+- [x] **Step 3: Implement `compressReelImage`**
 
 In `RouteSnapshot.kt`, add `import java.io.ByteArrayOutputStream` to the imports, then add at the end of the file:
 
@@ -188,12 +188,12 @@ fun compressReelImage(bitmap: Bitmap, maxBytes: Int = 900_000): ByteArray? {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `./gradlew connectedDebugAndroidTest --tests "*CompressReelImageTest*"`
 Expected: PASS (needs a connected device/emulator). If no device is attached, at minimum `./gradlew compileDebugAndroidTestKotlin` must succeed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RouteSnapshot.kt app/src/androidTest/java/com/example/a211198_hasif_drnelson_Project2/view/screen/CompressReelImageTest.kt
@@ -207,7 +207,7 @@ git commit -m "P5: compressReelImage caps reel JPEG under the Firestore doc limi
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/dao/ActivityDao.kt`
 
-- [ ] **Step 1: Add the query**
+- [x] **Step 1: Add the query**
 
 After the existing `insertMedia` declaration (line ~21), add:
 
@@ -220,12 +220,12 @@ After the existing `insertMedia` declaration (line ~21), add:
 `import androidx.room.Query` and
 `import com.example.a211198_hasif_drnelson_Project2.data.entities.MediaEntity`.)
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL (Room generates the query implementation).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/dao/ActivityDao.kt
@@ -240,7 +240,7 @@ git commit -m "P5: ActivityDao.getMediaById for the own-post sync guard"
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt`
 - Test: `app/src/test/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryMapperTest.kt`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append these tests inside the `GalleryMapperTest` class (before the closing brace).
 Add `import com.google.firebase.firestore.Blob` to the test imports.
@@ -300,12 +300,12 @@ Add `import com.google.firebase.firestore.Blob` to the test imports.
 > `.toEntity()` with no new args — Step 3 gives every new parameter a default, so
 > those keep compiling unchanged.
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./gradlew testDebugUnitTest --tests "*GalleryMapperTest*"`
 Expected: FAIL — `toDoc(blob)`, `toPublicReel(uid, blob)`, and the `imageUriOverride` params do not exist yet.
 
-- [ ] **Step 3: Update the four mappers**
+- [x] **Step 3: Update the four mappers**
 
 In `GalleryRepository.kt`, replace the four mapper functions at the bottom of the
 file with these signatures. Add `import com.google.firebase.firestore.Blob` to the
@@ -383,12 +383,12 @@ internal fun MediaDoc.toEntity(ownerEmail: String, imageUriOverride: String? = n
 > made cross-device photo posts render blank). `imageUri` now comes only from the
 > locally-written cache path.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `./gradlew testDebugUnitTest --tests "*GalleryMapperTest*"`
 Expected: PASS (new + pre-existing tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt app/src/test/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryMapperTest.kt
@@ -403,7 +403,7 @@ git commit -m "P5: reel mappers carry image blob + isCard, drop stale remote ima
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/RunTrackApplication.kt`
 
-- [ ] **Step 1: Add the `cacheDir` constructor param**
+- [x] **Step 1: Add the `cacheDir` constructor param**
 
 Change the `GalleryRepository` constructor:
 
@@ -425,7 +425,7 @@ import java.io.FileOutputStream
 
 (`Blob` may already be imported from Task 4 — keep a single import.)
 
-- [ ] **Step 2: Add `pushMediaToCloud` + the cache helper; refactor `createPost`**
+- [x] **Step 2: Add `pushMediaToCloud` + the cache helper; refactor `createPost`**
 
 Replace the body of `createPost` so it delegates the Firestore write to a new
 `pushMediaToCloud`, and add the cache-writer. The new `createPost`:
@@ -490,7 +490,7 @@ Replace the body of `createPost` so it delegates the Firestore write to a new
     }.getOrNull()
 ```
 
-- [ ] **Step 3: Wire `cacheDir` in `RunTrackApplication`**
+- [x] **Step 3: Wire `cacheDir` in `RunTrackApplication`**
 
 In `RunTrackApplication.kt`, update the `galleryRepository` initializer:
 
@@ -500,12 +500,12 @@ In `RunTrackApplication.kt`, update the `galleryRepository` initializer:
 
 (`cacheDir` is a `Context` property available on the `Application`.)
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt app/src/main/java/com/example/a211198_hasif_drnelson_Project2/RunTrackApplication.kt
@@ -519,7 +519,7 @@ git commit -m "P5: GalleryRepository.pushMediaToCloud writes image blob; cacheDi
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt`
 
-- [ ] **Step 1: Decode-to-cache in `startFeedSync`**
+- [x] **Step 1: Decode-to-cache in `startFeedSync`**
 
 Replace the per-document body inside the `startFeedSync` snapshot loop with:
 
@@ -532,7 +532,7 @@ Replace the per-document body inside the `startFeedSync` snapshot loop with:
                         }
 ```
 
-- [ ] **Step 2: Decode-to-cache + own-post guard in `startMineSync`**
+- [x] **Step 2: Decode-to-cache + own-post guard in `startMineSync`**
 
 Replace the per-document body inside the `startMineSync` snapshot loop with:
 
@@ -550,17 +550,17 @@ Replace the per-document body inside the `startMineSync` snapshot loop with:
                         }
 ```
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Run the full unit suite (no regressions)**
+- [x] **Step 4: Run the full unit suite (no regressions)**
 
 Run: `./gradlew testDebugUnitTest`
 Expected: PASS (all existing + Task-4 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/data/repository/GalleryRepository.kt
@@ -575,7 +575,7 @@ git commit -m "P5: reel listeners decode image blob to cache; own-post guard kee
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/RecordViewModel.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RecordScreen.kt`
 
-- [ ] **Step 1: Give `RecordViewModel` a repository ref + `imageBytes` param**
+- [x] **Step 1: Give `RecordViewModel` a repository ref + `imageBytes` param**
 
 In `RecordViewModel.kt`, add the repository field next to the other deps (after
 the `userDao` line, ~line 32):
@@ -632,7 +632,7 @@ local insert. Replace the signature and the `viewModelScope.launch { ... }` bloc
 
 (`RunTrackApplication` is already imported in this file.)
 
-- [ ] **Step 2: Encode the card bitmap in `RecordScreen.onPost`**
+- [x] **Step 2: Encode the card bitmap in `RecordScreen.onPost`**
 
 In `RecordScreen.kt`, in the `RunSummarySheet(onPost = { caption, cardBitmap -> ... })`
 lambda (~line 321), encode the bitmap and pass the bytes. Replace the lambda body:
@@ -663,12 +663,12 @@ lambda (~line 321), encode the bitmap and pass the bytes. Replace the lambda bod
 (`compressReelImage` and `saveBitmapToInternalStorage` are in the same package, so
 no import is needed.)
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/RecordViewModel.kt app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RecordScreen.kt
@@ -683,7 +683,7 @@ git commit -m "P5: run-summary post syncs to cloud with its compressed card imag
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/GalleryViewModel.kt`
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/GalleryScreen.kt`
 
-- [ ] **Step 1: Add `imageBytes` to `GalleryViewModel.createPost`**
+- [x] **Step 1: Add `imageBytes` to `GalleryViewModel.createPost`**
 
 In `GalleryViewModel.kt`, replace the `createPost` function:
 
@@ -705,7 +705,7 @@ In `GalleryViewModel.kt`, replace the `createPost` function:
     }
 ```
 
-- [ ] **Step 2: Decode + encode the picked URI in `GalleryScreen`**
+- [x] **Step 2: Decode + encode the picked URI in `GalleryScreen`**
 
 In `GalleryScreen.kt`, find the call to `...createPost(` that passes the picked
 image URI (the CreatePostDialog confirm handler). Immediately before it, decode the
@@ -739,12 +739,12 @@ variable names at the call site):
 > no import is needed. If `LocalContext` / a `context` val already exists in this
 > composable, reuse it instead of re-declaring.
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run: `./gradlew compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view_model/GalleryViewModel.kt app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/GalleryScreen.kt
@@ -757,17 +757,17 @@ git commit -m "P5: CreatePostDialog photos sync cross-device via compressed blob
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Compile + unit tests green**
+- [x] **Step 1: Compile + unit tests green**
 
 Run: `./gradlew compileDebugKotlin testDebugUnitTest`
 Expected: BUILD SUCCESSFUL; all unit tests pass.
 
-- [ ] **Step 2: Instrumented tests compile (and run if a device is attached)**
+- [x] **Step 2: Instrumented tests compile (and run if a device is attached)**
 
 Run: `./gradlew compileDebugAndroidTestKotlin`
 Expected: BUILD SUCCESSFUL. With a device: `./gradlew connectedDebugAndroidTest --tests "*CompressReelImageTest*"` PASS.
 
-- [ ] **Step 3: On-device cross-device checkpoint (Phase 5 §6)**
+- [x] **Step 3: On-device cross-device checkpoint (Phase 5 §6)**
 
 Manual, two devices/accounts (build per memory `maplibre-vulkan-pin` — debug APK is armeabi-v7a only):
 1. Phone A: record a run → End → Post the run-summary card.
@@ -778,7 +778,7 @@ Manual, two devices/accounts (build per memory `maplibre-vulkan-pin` — debug A
 4. A stats-only post (no image) still falls back cleanly to the drawable.
 5. Fresh-install A's account on a third device → own reels restore **with** images.
 
-- [ ] **Step 4: Update the roadmap**
+- [x] **Step 4: Update the roadmap**
 
 In `plan.md`, mark the Phase 5 image-sync item done and note the Firestore-blob
 approach (Storage was unavailable without Blaze). Update the §8 table / the P5

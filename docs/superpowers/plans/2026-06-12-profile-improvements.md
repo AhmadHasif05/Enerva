@@ -1328,7 +1328,7 @@ git commit -m "feat: long-press multi-select delete in own gallery grid"
 
 No code changes — install the debug build on a device/emulator (ideally two accounts/devices for cross-device checks) and confirm each behaviour.
 
-- [ ] **Step 1: Install and launch**
+- [x] **Step 1: Install and launch**
 
 Run:
 ```bash
@@ -1337,27 +1337,27 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`, app installs.
 
-- [ ] **Step 2: Avatar upload + own display**
+- [x] **Step 2: Avatar upload + own display**
 
 In Edit Profile, change the photo and Save. Confirm the new avatar shows on your own Profile header and on your own reels' name bar in the Gallery feed.
 
-- [ ] **Step 3: Cross-device avatar (two accounts)**
+- [x] **Step 3: Cross-device avatar (two accounts)**
 
 Sign in as user B on a second device/emulator and set a photo. As user A, open the Gallery feed: user B's reel shows B's real photo (not the person-icon placeholder). If you only have one device, verify the placeholder icon shows for a demo author (Sarah/Daniel/Aisha) instead.
 
-- [ ] **Step 4: Open another user's profile**
+- [x] **Step 4: Open another user's profile**
 
 In the Gallery feed, tap a reel's name/avatar bar for a user that isn't you. Confirm: their profile opens showing avatar + name + location + stats, a single **Follow/Following** button, **no** Edit Profile, **no** Logout/Gallery top-bar actions, **no** Saved section. Tap a gallery tile → their reels open read-only with no delete/selection. Tapping your **own** reel's name bar opens your own Profile (with Edit/Logout).
 
-- [ ] **Step 5: Multi-select delete (own profile)**
+- [x] **Step 5: Multi-select delete (own profile)**
 
 On your own Profile, long-press a gallery tile → selection mode starts with that tile checked and the header becomes "1 selected" with a trash + X. Select a couple more, tap trash → confirm dialog → Delete. Confirm the tiles disappear from the grid and the reel(s) are gone from the Gallery feed. Tapping X cancels selection with nothing deleted.
 
-- [ ] **Step 6: Delete propagation (optional, two devices)**
+- [x] **Step 6: Delete propagation (optional, two devices)**
 
 After deleting a post on device A, confirm it also disappears on device A's other sessions / from device B's feed (driven by the `REMOVED` listener handling). 
 
-- [ ] **Step 7: Final commit (if any verification fixes were needed)**
+- [x] **Step 7: Final commit (if any verification fixes were needed)**
 
 If Steps 2–6 surfaced fixes, commit them with a clear message. Otherwise nothing to commit.
 

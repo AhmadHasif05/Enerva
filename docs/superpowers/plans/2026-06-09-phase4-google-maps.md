@@ -122,7 +122,7 @@ Key points:
 
 - [x] `./gradlew assembleDebug` → `BUILD SUCCESSFUL` (keyless build).
 - [x] `./gradlew testDebugUnitTest` → `BUILD SUCCESSFUL` (existing unit tests unaffected).
-- [ ] `./gradlew connectedDebugAndroidTest` — DAO instrumented suite; run if a device is attached.
+- [x] `./gradlew connectedDebugAndroidTest` — DAO instrumented suite; run if a device is attached.
 
 ---
 
@@ -130,10 +130,10 @@ Key points:
 
 Build + run on a device/emulator with internet, grant location, press **play**, walk/simulate movement.
 Confirm:
-- [ ] A real map renders (OpenFreeMap even with no key).
-- [ ] The live GPS trail draws as a polyline that grows as you move.
-- [ ] The location dot appears and the camera follows while recording.
-- [ ] **Layers** cycles styles (and MapTiler Satellite/Outdoor if a key is set).
-- [ ] **3D** tilts the camera; **Recenter** re-centres on the current position.
+- [x] A real map renders (OpenFreeMap even with no key).
+- [x] The live GPS trail draws as a polyline that grows as you move.
+- [x] The location dot appears and the camera follows while recording.
+- [x] **Layers** cycles styles (and MapTiler Satellite/Outdoor if a key is set).
+- [x] **3D** tilts the camera; **Recenter** re-centres on the current position.
 
 Then use `superpowers:finishing-a-development-branch` to merge `phase4-google-maps` into `main`.

@@ -430,7 +430,7 @@ git commit -m "feat: profile gallery tiles 4:5 to match the reel card"
 
 No code changes — install the debug build and confirm the behaviour.
 
-- [ ] **Step 1: Install and launch**
+- [x] **Step 1: Install and launch**
 
 Run:
 ```bash
@@ -439,23 +439,23 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`, app installs.
 
-- [ ] **Step 2: Route-only summary card**
+- [x] **Step 2: Route-only summary card**
 
 Record a run, tap End. The summary card is a 4:5 frame with the **route map as the hero**, ENERVA top-left, the stats chip bottom-right (no route thumbnail inside it), and the pace legend bottom-left.
 
-- [ ] **Step 3: Photo-hero summary card**
+- [x] **Step 3: Photo-hero summary card**
 
 Tap **Take photo** and capture one. The **photo becomes the hero**; the bottom-right chip now shows the **mini route-map thumbnail** beside ENERVA; the standalone pace legend is gone. Tap **Use route map** to confirm it reverts to Step 2's look.
 
-- [ ] **Step 4: Post + feed consistency**
+- [x] **Step 4: Post + feed consistency**
 
 Post the run. Open the Gallery reel feed: the whole 4:5 card is visible with **no side clipping** (DURATION/DISTANCE/PACE all readable).
 
-- [ ] **Step 5: Profile grid consistency**
+- [x] **Step 5: Profile grid consistency**
 
 Open your Profile. The gallery tiles are **4:5** (taller than before) and the posted card shows whole, matching the feed. Long-press still starts multi-select; the check overlay still sits top-right on each tile.
 
-- [ ] **Step 6: Final commit (if any verification fixes were needed)**
+- [x] **Step 6: Final commit (if any verification fixes were needed)**
 
 If Steps 2–5 surfaced fixes, commit them with a clear message. Otherwise nothing to commit.
 
