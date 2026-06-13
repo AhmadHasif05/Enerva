@@ -34,7 +34,7 @@ Expected on success: `BUILD SUCCESSFUL`.
 **Files:**
 - Modify (full rewrite): `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RunSummaryCard.kt`
 
-- [ ] **Step 1: Replace the entire contents of `RunSummaryCard.kt`**
+- [x] **Step 1: Replace the entire contents of `RunSummaryCard.kt`**
 
 Replace the whole file with:
 
@@ -271,7 +271,7 @@ private fun PaceLegend(modifier: Modifier = Modifier) {
 }
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run:
 ```bash
@@ -280,7 +280,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: this **fails to compile** — `RunSummarySheet.kt` still calls `RunSummaryCard(snapshot = …, isPhoto = …)` with the old signature (errors like "No value passed for parameter 'photo'" / "Cannot find a parameter with this name: snapshot"). That's expected; Task 2 updates the call site. (If you prefer a green build at every step, do Task 1 Step 1 and Task 2 Step 1 together, then compile once.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RunSummaryCard.kt
@@ -294,7 +294,7 @@ git commit -m "feat: 4:5 photo-hero run-summary card with bottom-right info chip
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RunSummarySheet.kt`
 
-- [ ] **Step 1: Recompute `hasImage` (drop the merged `cardImage`)**
+- [x] **Step 1: Recompute `hasImage` (drop the merged `cardImage`)**
 
 In `RunSummarySheet.kt`, find:
 
@@ -311,7 +311,7 @@ Replace with:
     val hasImage = photo != null || snapshot != null
 ```
 
-- [ ] **Step 2: Pass `photo` + `routeSnapshot` to the card**
+- [x] **Step 2: Pass `photo` + `routeSnapshot` to the card**
 
 In `RunSummarySheet.kt`, find the `RunSummaryCard(...)` call:
 
@@ -345,7 +345,7 @@ Replace with:
 
 No other changes: the camera launcher, `photo`/`pendingPhotoFile` state, the Take photo / Retake / "Use route map" buttons, the `includePhoto` switch, the caption field, and the Post path (`captureLayer.toImageBitmap().asAndroidBitmap()`) are unchanged. The "Use route map" button still gates on `photo != null && snapshot != null`, and the `includePhoto` switch still gates on `hasImage`.
 
-- [ ] **Step 3: Compile**
+- [x] **Step 3: Compile**
 
 Run:
 ```bash
@@ -354,7 +354,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/RunSummarySheet.kt
@@ -368,7 +368,7 @@ git commit -m "feat: pass photo + route snapshot separately to RunSummaryCard"
 **Files:**
 - Modify: `app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/ProfileScreen.kt`
 
-- [ ] **Step 1: Switch the grid tiles from square to 4:5**
+- [x] **Step 1: Switch the grid tiles from square to 4:5**
 
 In `ProfileScreen.kt`, the gallery grid uses `Modifier.aspectRatio(1f)` in two places inside the `gallery.chunked(3).forEach { row -> ... }` block: the image tile `Box` and the trailing filler `Box`:
 
@@ -408,7 +408,7 @@ Resulting filler:
                                 }
 ```
 
-- [ ] **Step 2: Compile**
+- [x] **Step 2: Compile**
 
 Run:
 ```bash
@@ -417,7 +417,7 @@ export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
 ```
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add app/src/main/java/com/example/a211198_hasif_drnelson_Project2/view/screen/ProfileScreen.kt
