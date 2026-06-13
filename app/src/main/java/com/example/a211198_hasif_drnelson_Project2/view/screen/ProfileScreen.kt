@@ -42,10 +42,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,28 +58,53 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.a211198_hasif_drnelson_Project2.R
+import com.example.a211198_hasif_drnelson_Project2.model.UserData
 import com.example.a211198_hasif_drnelson_Project2.view.Screen
 import com.example.a211198_hasif_drnelson_Project2.view.userGalleryRoute
 import com.example.a211198_hasif_drnelson_Project2.view_model.GalleryViewModel
+import com.example.a211198_hasif_drnelson_Project2.view_model.MessageViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 
-// ProfileScreen composable: Matched with image and using Material Theme tokens
+// ProfileScreen — dual mode.
+//  - authorName == null  → the signed-in user's own profile (Edit Profile, Logout,
+//    Saved section, and the multi-select gallery grid).
+//  - authorName != null  → another user's profile: avatar + name + stats + a single
+//    Follow/Following button, a read-only gallery, and no Edit/Logout/Saved.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     userViewModel: UserViewModel,
     navController: NavController,
+    messageViewModel: MessageViewModel = viewModel(factory = MessageViewModel.Factory),
     onLogout: () -> Unit = {},
+    authorName: String? = null,
     galleryViewModel: GalleryViewModel = viewModel(factory = GalleryViewModel.Factory)
 ) {
-    val userData = userViewModel.userProfile
+    val isSelf = authorName == null
+    val myProfile = userViewModel.userProfile
+
+    // For another user's profile, resolve their data from the in-memory directory
+    // list first, then fall back to a name lookup.
+    var otherProfile by remember(authorName) { mutableStateOf<UserData?>(null) }
+    if (!isSelf) {
+        val fromList = userViewModel.otherUsers.firstOrNull { it.runnerName == authorName }
+        LaunchedEffect(authorName, fromList) {
+            otherProfile = fromList ?: userViewModel.findUserByName(authorName!!)
+        }
+    }
+    val userData = if (isSelf) myProfile else (otherProfile ?: UserData(runnerName = authorName ?: ""))
+
     val primaryColor = MaterialTheme.colorScheme.primary
     val isFollowing = userViewModel.isFollowing(userData.runnerName)
 
-    // Profile gallery = only this user's own posts.
-    androidx.compose.runtime.LaunchedEffect(userData.email, userData.runnerName) {
-        if (userData.email.isNotBlank()) {
-            galleryViewModel.showMyPosts(userData.email, userData.runnerName.ifBlank { "You" })
+    // Pick the gallery mode: my own posts vs. the visited user's posts.
+    LaunchedEffect(isSelf, userData.email, userData.runnerName) {
+        if (isSelf) {
+            if (userData.email.isNotBlank()) {
+                galleryViewModel.showMyPosts(userData.email, userData.runnerName.ifBlank { "You" })
+            }
+        } else if (userData.runnerName.isNotBlank()) {
+            galleryViewModel.showAuthorGallery(userData.runnerName)
         }
     }
 
@@ -93,15 +122,14 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.Gallery.route) }) {
-                        Icon(Icons.Rounded.Share, contentDescription = "Gallery", tint = MaterialTheme.colorScheme.onBackground)
-                    }
-                    IconButton(onClick = {
-                        // Log out: clears the active session across ViewModels and
-                        // returns to Login (handled by MainActivity).
-                        onLogout()
-                    }) {
-                        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = "Log out", tint = MaterialTheme.colorScheme.onBackground)
+                    // Gallery + Logout actions only belong on your own profile.
+                    if (isSelf) {
+                        IconButton(onClick = { navController.navigate(Screen.Gallery.route) }) {
+                            Icon(Icons.Rounded.Share, contentDescription = "Gallery", tint = MaterialTheme.colorScheme.onBackground)
+                        }
+                        IconButton(onClick = { onLogout() }) {
+                            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = "Log out", tint = MaterialTheme.colorScheme.onBackground)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -141,15 +169,16 @@ fun ProfileScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = userData.email,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-
+                    // Email is private to other users — only show it on your own profile.
+                    if (isSelf && userData.email.isNotBlank()) {
+                        Text(
+                            text = userData.email,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
                     Text(
                         text = userData.location,
                         style = MaterialTheme.typography.bodySmall,
@@ -183,11 +212,11 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Primary action: Follow / Following
-            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                if (isFollowing) {
+            if (isSelf) {
+                // Own profile: Edit Profile only (no self-follow).
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                     OutlinedButton(
-                        onClick = { userViewModel.toggleFollow(userData.runnerName) },
+                        onClick = { navController.navigate(Screen.EditProfile.route) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(44.dp),
@@ -195,45 +224,51 @@ fun ProfileScreen(
                         shape = RoundedCornerShape(22.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = primaryColor)
                     ) {
-                        Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Following", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                } else {
-                    Button(
-                        onClick = { userViewModel.toggleFollow(userData.runnerName) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp),
-                        shape = RoundedCornerShape(22.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = primaryColor,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Icon(Icons.Rounded.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Follow", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Edit Profile", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Secondary action: Edit profile
-            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                OutlinedButton(
-                    onClick = { navController.navigate(Screen.EditProfile.route) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp),
-                    border = BorderStroke(1.dp, primaryColor),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = primaryColor)
-                ) {
-                    Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Edit Profile", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            } else {
+                // Another user's profile: Follow / Following only.
+                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    if (isFollowing) {
+                        OutlinedButton(
+                            onClick = {
+                                userViewModel.toggleFollow(userData.runnerName)
+                                messageViewModel.removeConversation(userData.runnerName)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            border = BorderStroke(1.dp, primaryColor),
+                            shape = RoundedCornerShape(22.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = primaryColor)
+                        ) {
+                            Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Following", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                userViewModel.toggleFollow(userData.runnerName)
+                                messageViewModel.startConversationWith(userData.runnerName)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = RoundedCornerShape(22.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = primaryColor,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(Icons.Rounded.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Follow", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
 
@@ -241,7 +276,6 @@ fun ProfileScreen(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
             // Gallery section — Instagram-style 3-column image grid. Latest at the top.
-            // Tapping any tile jumps to the Gallery reels screen.
             Column(modifier = Modifier.padding(vertical = 16.dp)) {
                 Text(
                     "Gallery",
@@ -254,7 +288,8 @@ fun ProfileScreen(
                 val gallery = galleryViewModel.reels
                 if (gallery.isEmpty()) {
                     Text(
-                        "No posts yet. Tap + on Gallery to share your first run.",
+                        if (isSelf) "No posts yet. Tap + on Gallery to share your first run."
+                        else "${userData.runnerName} hasn't posted any reels yet.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -292,37 +327,38 @@ fun ProfileScreen(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            // Saved section — weekend-run places the user has bookmarked.
-            Column(modifier = Modifier.padding(vertical = 16.dp)) {
-                Text(
-                    "Saved",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                val savedRoutes = userViewModel.savedRoutes
-                if (savedRoutes.isEmpty()) {
+            // Saved section — own profile only.
+            if (isSelf) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Column(modifier = Modifier.padding(vertical = 16.dp)) {
                     Text(
-                        "No saved places yet. Tap the bookmark on a route to save it here.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
+                        "Saved",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                } else {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(savedRoutes) { route ->
-                            RouteCard(
-                                route = route,
-                                saved = true,
-                                onSaveToggle = { userViewModel.toggleRouteSave(route) }
-                            )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    val savedRoutes = userViewModel.savedRoutes
+                    if (savedRoutes.isEmpty()) {
+                        Text(
+                            "No saved places yet. Tap the bookmark on a route to save it here.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(savedRoutes) { route ->
+                                RouteCard(
+                                    route = route,
+                                    saved = true,
+                                    onSaveToggle = { userViewModel.toggleRouteSave(route) }
+                                )
+                            }
                         }
                     }
                 }
@@ -330,4 +366,3 @@ fun ProfileScreen(
         }
     }
 }
-

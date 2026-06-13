@@ -282,6 +282,7 @@ fun MainApp() {
                 ProfileScreen(
                     navController = navController,
                     userViewModel = userViewModel,
+                    messageViewModel = messageViewModel,
                     onLogout = {
                         // Clear BOTH activity-scoped ViewModels' active user so the
                         // next account starts clean (per-screen Gallery VMs are
@@ -323,6 +324,19 @@ fun MainApp() {
                 val raw = backStackEntry.arguments?.getString("authorName") ?: ""
                 val authorName = java.net.URLDecoder.decode(raw, "UTF-8")
                 GalleryScreen(
+                    navController = navController,
+                    userViewModel = userViewModel,
+                    messageViewModel = messageViewModel,
+                    authorName = authorName
+                )
+            }
+            composable(
+                route = Screen.UserProfile.route,
+                arguments = listOf(androidx.navigation.navArgument("authorName") { type = androidx.navigation.NavType.StringType })
+            ) { backStackEntry ->
+                val raw = backStackEntry.arguments?.getString("authorName") ?: ""
+                val authorName = java.net.URLDecoder.decode(raw, "UTF-8")
+                ProfileScreen(
                     navController = navController,
                     userViewModel = userViewModel,
                     messageViewModel = messageViewModel,
