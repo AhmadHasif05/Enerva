@@ -60,7 +60,8 @@ data class SavedRouteDoc(
     val time: String = "",
     val elevation: String = "",
     val difficulty: String = "",
-    val imageRes: Int = 0
+    val imageRes: Int = 0,
+    val imageUrl: String? = null
 )
 
 /** users/{uid}/activities/{activityId} */

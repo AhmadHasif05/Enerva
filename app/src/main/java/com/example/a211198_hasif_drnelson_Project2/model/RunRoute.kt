@@ -12,7 +12,8 @@ data class RunRoute(
     val time: String,
     val elevation: String,
     val difficulty: String,
-    @DrawableRes val imageRes: Int
+    @DrawableRes val imageRes: Int,
+    val imageUrl: String? = null   // remote photo (Foursquare); null → use imageRes
 )
 
 val routeList = listOf(

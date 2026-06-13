@@ -29,7 +29,7 @@ import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
         MediaEntity::class,
         UserDirectoryEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -73,6 +73,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v6 → v7 (Weekend Run Spots): saved routes fetched from Foursquare carry a
+        // remote photo URL. Additive nullable ADD COLUMN — existing rows preserved.
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE saved_routes ADD COLUMN imageUrl TEXT")
+            }
+        }
+
         fun get(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -82,7 +90,7 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                     // Real migrations preserve data; destructive fallback only
                     // kicks in for version paths we haven't written a migration for.
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build().also { instance = it }
             }

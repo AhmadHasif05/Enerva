@@ -47,7 +47,8 @@ data class SavedRouteEntity(
     val time: String,
     val elevation: String,
     val difficulty: String,
-    val imageRes: Int
+    val imageRes: Int,
+    val imageUrl: String? = null
 )
 
 // Who the user is following. Composite key = ownerEmail+friendName.

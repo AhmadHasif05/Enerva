@@ -402,7 +402,8 @@ private fun SavedRouteEntity.toDoc() = SavedRouteDoc(
     time = time,
     elevation = elevation,
     difficulty = difficulty,
-    imageRes = imageRes
+    imageRes = imageRes,
+    imageUrl = imageUrl
 )
 
 // Firestore document ids can't contain '/'. Display names / route titles are

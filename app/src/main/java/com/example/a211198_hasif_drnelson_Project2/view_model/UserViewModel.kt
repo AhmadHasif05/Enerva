@@ -309,7 +309,8 @@ private fun RunRoute.toEntity(ownerEmail: String) = SavedRouteEntity(
     time = time,
     elevation = elevation,
     difficulty = difficulty,
-    imageRes = imageRes
+    imageRes = imageRes,
+    imageUrl = imageUrl
 )
 
 // Saved routes are matched back to the in-memory `routeList` so screens reuse
@@ -317,4 +318,4 @@ private fun RunRoute.toEntity(ownerEmail: String) = SavedRouteEntity(
 // (e.g. resource id moved across rebuilds), it is rebuilt from the stored fields.
 private fun SavedRouteEntity.toModel(): RunRoute? =
     routeList.firstOrNull { it.title == title }
-        ?: RunRoute(title, distance, time, elevation, difficulty, imageRes)
+        ?: RunRoute(title, distance, time, elevation, difficulty, imageRes, imageUrl)
