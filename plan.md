@@ -68,11 +68,11 @@ A casual-to-intermediate runner who wants Strava-style tracking **plus** a light
 | Location | Play Services Location (`FusedLocationProviderClient`) | Battery-efficient GPS for activity tracking. |
 | Maps | MapLibre Native via `ramani-maplibre` (Compose) + MapTiler/OpenFreeMap tiles | Free, no-credit-card vector map on the Record screen (Phase 4). OpenStreetMap data. |
 | Camera | CameraX | Activity media capture (wired in Phase 5). |
-| Networking | Retrofit + Moshi + OkHttp | Present for future REST integrations (e.g. Maps/places). |
+| Networking | Retrofit + Moshi + OkHttp | REST integration — live "Weekend Run Spots" via the Foursquare Places API (Phase 6). |
 | Prefs | DataStore (Preferences) | One-time flags (e.g. demo-seed gate) and lightweight session prefs. |
 | Permissions | Accompanist Permissions | Compose-friendly runtime permission flow. |
 
-> **Note:** Retrofit/Moshi/OkHttp are wired but not yet exercised by a live API — reserved for future *places* work (route discovery, §10.2).
+> **Note:** Retrofit/Moshi/OkHttp were wired in Phase 3 but unused until **Phase 6**, which exercises them against the **Foursquare Places API** for live weekend-run-spot discovery (route discovery, §10.2). Spec: [`docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md`](docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md).
 
 ---
 
@@ -329,8 +329,10 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 > **Current status (2026-06-12): all 6 phases (0–5) are ✅ done and verified
 > on-device.** A posted reel now write-throughs to **both** Room (local) and
 > Firestore (`users/{uid}/media` + `publicReels`), image included, confirmed on a
-> physical Realme. What's left is **polish, not features** — see §9 (code-quality
-> backlog) and §10 (UX quick wins). No further phases are planned.
+> physical Realme. **Phase 6 (designed 2026-06-14)** adds the first live REST
+> integration — Foursquare Places powering real Weekend Run Spot discovery on
+> Home. Beyond that, what's left is **polish, not features** — see §9 (code-
+> quality backlog) and §10 (UX quick wins).
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -340,6 +342,7 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 | 3 | Firebase Auth + Cloud Firestore | ✅ Done — rules published; reads/writes verified on-device (data lands in Firestore + Room) |
 | 4 | Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ Done — verified on-device (real GPS location renders on a physical phone); map works keyless via OpenFreeMap, optional `MAPTILER_API_KEY` (see docs/setupmaps.md) |
 | 5 | Camera in Record screen | ✅ Done — camera capture + branded card + **cross-device images** (Firestore blob, not Storage — no Blaze); verified on-device (post saves to Firestore + local) |
+| 6 | Live Weekend Run Spots (Foursquare Places REST API) | 🔜 Designed — Home "Plan Your Weekend Run" fetches real nearby parks/trails (photo + name + distance) via Retrofit; first live use of the wired networking stack. Spec: [`docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md`](docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md) |
 
 ### Phase 3 sub-tracker (Firebase)
 
@@ -450,7 +453,7 @@ Two tracks: **quick wins** that are realistically shippable solo and raise polis
 | **Motivation loops** | Streaks, weekly goals, and **achievements/badges** (first 5K, 7-day streak) — directly targets the "motivation fades" problem from §1. |
 | **Social competition** | Friend & club **leaderboards** (weekly distance), kudos/reactions on reels, comments. |
 | **Live & safety** | **Live activity sharing** ("a friend is running now"), live location share with a trusted contact for safety on solo runs. |
-| **Smarter routes** | Real route discovery from the Maps/places API, surfacing routes by distance/elevation/difficulty near the user (the Record filters already hint at this). |
+| **Smarter routes** | ▶ **In progress (Phase 6):** real run-spot discovery from the **Foursquare Places API** — nearby parks/trails with photo + distance in the Home Weekend Run section. Spec: [`docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md`](docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md). Next: surface by distance/elevation/difficulty (the Record filters hint at this). |
 | **Rich reels** | Phase-5 camera capture + an auto-generated "run summary card" (map snapshot + stats) as the reel image. |
 | **Coaching** | Lightweight training plans / suggested next workout based on recent activity — could later use an on-device or API model for personalised nudges. |
 | **Notifications** | Re-introduce a focused notifications surface (new follower, message, friend finished a run) — but as push, not a dead screen. |
