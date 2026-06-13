@@ -206,10 +206,10 @@ private fun ReelPage(
             model = reel.imageUri ?: reel.imageRes,
             contentDescription = reel.caption,
             modifier = Modifier.fillMaxSize(),
-            // Branded run-summary cards are ≈square — Fit shows the whole frame
-            // (stats footer not clipped) centered on the black reel bg. Full-bleed
-            // photos and drawables stay Crop to cover the tall page.
-            contentScale = if (reel.isCard) ContentScale.Fit else ContentScale.Crop
+            // Always Fit: show the whole image (4:5 card, photo, or drawable) centered
+            // on the black reel bg, letterboxed rather than cropped — nothing gets cut
+            // off the top/bottom by the tall full-screen page.
+            contentScale = ContentScale.Fit
         )
         // Dark gradient at the bottom so the overlay text stays legible
         // even against a bright image.
