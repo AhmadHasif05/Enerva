@@ -117,7 +117,11 @@ data class PublicProfileDoc(
     val runnerName: String = "",
     val location: String = "",
     val fitnessLevel: String = "",
-    val photoUri: String? = null
+    val photoUri: String? = null,
+    // Compressed avatar JPEG so the photo travels cross-device (photoUri is a
+    // device-local content:// path that doesn't resolve elsewhere). Mirrors the
+    // reel-image blob approach. Decoded to a cache file on receive.
+    val photoBlob: Blob? = null
 )
 
 /** publicReels/{mediaId} — a reel surfaced in the cross-user Gallery feed. */

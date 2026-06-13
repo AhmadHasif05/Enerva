@@ -12,7 +12,7 @@ import com.google.firebase.FirebaseApp
 // ViewModelFactory and any other early consumers can fetch them.
 class RunTrackApplication : Application() {
     val authRepository: AuthRepository by lazy { AuthRepository() }
-    val userRepository: UserRepository by lazy { UserRepository(AppDatabase.get(this)) }
+    val userRepository: UserRepository by lazy { UserRepository(AppDatabase.get(this), cacheDir) }
     val messageRepository: MessageRepository by lazy { MessageRepository(AppDatabase.get(this)) }
     val galleryRepository: GalleryRepository by lazy { GalleryRepository(AppDatabase.get(this), cacheDir) }
 

@@ -14,9 +14,12 @@ import com.example.a211198_hasif_drnelson_Project2.data.entities.SavedRouteEntit
 import com.example.a211198_hasif_drnelson_Project2.data.entities.UserDirectoryEntity
 import com.example.a211198_hasif_drnelson_Project2.data.entities.UserEntity
 import com.example.a211198_hasif_drnelson_Project2.model.UserData
+import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
+import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -41,6 +44,7 @@ import kotlinx.coroutines.tasks.await
  */
 class UserRepository(
     db: AppDatabase,
+    private val cacheDir: File,
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
 ) {
     private val userDao = db.userDao()
@@ -171,24 +175,39 @@ class UserRepository(
             }
 
         // publicProfiles/* — the cross-device user directory. Mirror every other
-        // user into Room so Search can discover accounts created elsewhere.
+        // user into Room so Search/profiles can show accounts created elsewhere.
         listeners += firestore.collection(PUBLIC_PROFILES)
             .addSnapshotListener { snap, _ ->
                 snap ?: return@addSnapshotListener
-                val entries = snap.documents.mapNotNull { it.toObject(PublicProfileDoc::class.java) }
+                val docs = snap.documents.mapNotNull { it.toObject(PublicProfileDoc::class.java) }
                     .filter { it.uid.isNotBlank() && it.uid != uid }
-                    .map {
+                if (docs.isEmpty()) return@addSnapshotListener
+                scope.launch {
+                    val entries = docs.map { d ->
+                        // Prefer the decoded blob (loads cross-device); fall back to
+                        // the doc's photoUri for profiles that predate avatar blobs.
+                        val avatarPath = d.photoBlob?.toBytes()?.let { writeAvatarCache(d.uid, it) }
                         UserDirectoryEntity(
-                            uid = it.uid,
-                            runnerName = it.runnerName,
-                            location = it.location,
-                            fitnessLevel = it.fitnessLevel,
-                            photoUri = it.photoUri
+                            uid = d.uid,
+                            runnerName = d.runnerName,
+                            location = d.location,
+                            fitnessLevel = d.fitnessLevel,
+                            photoUri = avatarPath ?: d.photoUri
                         )
                     }
-                if (entries.isNotEmpty()) scope.launch { userDao.upsertDirectoryUsers(entries) }
+                    userDao.upsertDirectoryUsers(entries)
+                }
             }
     }
+
+    // Decode an avatar blob to a stable cache file; return its absolute path (or
+    // null on failure). Idempotent on uid; Coil renders the file path.
+    private fun writeAvatarCache(uid: String, bytes: ByteArray): String? = runCatching {
+        val dir = File(cacheDir, "remote_avatars").apply { mkdirs() }
+        val file = File(dir, "$uid.jpg")
+        FileOutputStream(file).use { it.write(bytes) }
+        file.absolutePath
+    }.getOrNull()
 
     fun stopListeners() {
         listeners.forEach { it.remove() }
@@ -197,9 +216,9 @@ class UserRepository(
 
     // ---- profile writes (write-through) ----
 
-    suspend fun saveProfile(user: UserData) {
+    suspend fun saveProfile(user: UserData, avatarBytes: ByteArray? = null) {
         userDao.upsertUser(user.toEntity())
-        pushProfile(user, create = false)
+        pushProfile(user, create = false, avatarBytes = avatarBytes)
     }
 
     /**
@@ -220,7 +239,7 @@ class UserRepository(
         userDao.renameFollowFriend(oldName, newName)
     }
 
-    private suspend fun pushProfile(user: UserData, create: Boolean) {
+    private suspend fun pushProfile(user: UserData, create: Boolean, avatarBytes: ByteArray? = null) {
         val uid = user.firebaseUid ?: return // no cloud identity yet → local-only
         val ref = firestore.collection(USERS).document(uid)
         val fields = mutableMapOf<String, Any?>(
@@ -239,18 +258,20 @@ class UserRepository(
         // merge so a profile edit never wipes createdAt or fields we didn't send.
         runCatching { ref.set(fields, SetOptions.merge()).await() }
 
-        // Mirror the public slice into the discovery directory so other devices
-        // can find + display this user without reading the owner-only profile doc.
+        // Mirror the public slice into the discovery directory. Merge (not a full
+        // set) so a later name/bio edit can't drop the avatar blob; include the
+        // blob only when the user just picked a new photo.
+        val publicFields = mutableMapOf<String, Any?>(
+            "uid" to uid,
+            "runnerName" to user.runnerName,
+            "location" to user.location,
+            "fitnessLevel" to user.fitnessLevel,
+            "photoUri" to user.photoUri
+        )
+        if (avatarBytes != null) publicFields["photoBlob"] = Blob.fromBytes(avatarBytes)
         runCatching {
-            firestore.collection(PUBLIC_PROFILES).document(uid).set(
-                PublicProfileDoc(
-                    uid = uid,
-                    runnerName = user.runnerName,
-                    location = user.location,
-                    fitnessLevel = user.fitnessLevel,
-                    photoUri = user.photoUri
-                )
-            ).await()
+            firestore.collection(PUBLIC_PROFILES).document(uid)
+                .set(publicFields, SetOptions.merge()).await()
         }
     }
 
