@@ -252,11 +252,11 @@ class UserViewModel(
 
     // ---- weekend run spots ----
 
-    private val DEFAULT_LAT = 3.1390
-    private val DEFAULT_LNG = 101.6869
+    private var weekendRunJob: Job? = null
 
     fun loadWeekendRunSpots() {
-        viewModelScope.launch {
+        weekendRunJob?.cancel()
+        weekendRunJob = viewModelScope.launch {
             val (lat, lng) = lastKnownLatLng()
             val result = runSpotRepository.nearbyRunSpots(lat, lng)
             weekendRun = if (result.isLive) WeekendRunUiState.Success(result.routes)
@@ -324,6 +324,8 @@ class UserViewModel(
 
     companion object {
         private const val KEY_ACTIVE_EMAIL = "activeEmail"
+        private const val DEFAULT_LAT = 3.1390
+        private const val DEFAULT_LNG = 101.6869
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
