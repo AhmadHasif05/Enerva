@@ -50,7 +50,10 @@ import com.example.a211198_hasif_drnelson_Project2.view.Screen
 import com.example.a211198_hasif_drnelson_Project2.view_model.GalleryViewModel
 import com.example.a211198_hasif_drnelson_Project2.view_model.UserViewModel
 import com.example.a211198_hasif_drnelson_Project2.view.components.HomeTopBar
+import androidx.compose.ui.res.painterResource
+import com.example.a211198_hasif_drnelson_Project2.R
 import com.example.a211198_hasif_drnelson_Project2.ui.theme.RunTrackTheme
+import com.example.a211198_hasif_drnelson_Project2.view_model.WeekendRunUiState
 
 // HomeScreen — the landing tab. A scrollable column with the top bar, a "Your
 // Progress" gallery row, and a "Plan Your Weekend Run" route row. Content fades +
@@ -209,6 +212,7 @@ fun GalleryImageTile(activity: GalleryActivity, onClick: () -> Unit = {}) {
 // WeekendRunSection
 @Composable
 fun WeekendRunSection(userViewModel: UserViewModel) {
+    val state = userViewModel.weekendRun
     Column(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Text(
@@ -216,22 +220,36 @@ fun WeekendRunSection(userViewModel: UserViewModel) {
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp)
             )
             Text(
-                text = "Explore these popular routes near you",
+                text = "Real places to run near you",
                 style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.5.sp)
             )
         }
         Spacer(modifier = Modifier.height(20.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(routeList) { route ->
-                WorkoutCardVisible(
-                    route = route,
-                    saved = userViewModel.isRouteSaved(route.title),
-                    onSaveToggle = { userViewModel.toggleRouteSave(route) }
-                )
+        when (state) {
+            is WeekendRunUiState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(380.dp),
+                    contentAlignment = Alignment.Center
+                ) { CircularProgressIndicator() }
             }
+            is WeekendRunUiState.Success -> RouteRow(state.routes, userViewModel)
+            is WeekendRunUiState.Fallback -> RouteRow(state.routes, userViewModel)
+        }
+    }
+}
+
+@Composable
+private fun RouteRow(routes: List<RunRoute>, userViewModel: UserViewModel) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        items(routes) { route ->
+            WorkoutCardVisible(
+                route = route,
+                saved = userViewModel.isRouteSaved(route.title),
+                onSaveToggle = { userViewModel.toggleRouteSave(route) }
+            )
         }
     }
 }
@@ -255,7 +273,14 @@ fun RouteCard(route: RunRoute, saved: Boolean = false, onSaveToggle: () -> Unit 
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth().weight(0.72f)) {
-                AsyncImage(model = route.imageRes, contentDescription = route.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                AsyncImage(
+                    model = route.imageUrl ?: route.imageRes,
+                    contentDescription = route.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallback = painterResource(R.drawable.teratai),
+                    error = painterResource(R.drawable.teratai)
+                )
                 IconButton(
                     onClick = onSaveToggle,
                     modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(40.dp).background(Color.Black.copy(alpha = 0.3f), CircleShape)
@@ -276,7 +301,11 @@ fun RouteCard(route: RunRoute, saved: Boolean = false, onSaveToggle: () -> Unit 
                         Text(text = route.difficulty, color = Color(0xFF81C784), fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontWeight = FontWeight.ExtraBold)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(text = "${route.distance} (${route.time}) • ${route.elevation}", style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium))
+                    Text(
+                        text = if (route.time.isBlank() && route.elevation.isBlank()) route.distance
+                               else "${route.distance} (${route.time}) • ${route.elevation}",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                    )
                 }
             }
         }
