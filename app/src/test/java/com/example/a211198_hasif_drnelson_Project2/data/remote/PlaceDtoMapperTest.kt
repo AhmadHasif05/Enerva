@@ -26,4 +26,18 @@ class PlaceDtoMapperTest {
         val dto = PlaceDto(name = "X", distance = 100, categories = emptyList(), photos = emptyList())
         assertNull(dto.firstPhotoUrl())
     }
+
+    @Test fun firstPhotoUrl_builds_url_from_first_photo() {
+        val dto = PlaceDto(
+            name = "Cafe",
+            distance = 500,
+            categories = emptyList(),
+            photos = listOf(PhotoDto("https://prefix/", "/photo.jpg"))
+        )
+        assertEquals("https://prefix/400x300/photo.jpg", dto.firstPhotoUrl())
+    }
+
+    @Test fun formatDistance_exactly_1km_shows_km() {
+        assertEquals("1.0 km away", formatDistance(1000))
+    }
 }
