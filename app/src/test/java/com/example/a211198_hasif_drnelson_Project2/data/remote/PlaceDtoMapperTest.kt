@@ -1,5 +1,6 @@
 package com.example.a211198_hasif_drnelson_Project2.data.remote
 
+import com.example.a211198_hasif_drnelson_Project2.data.repository.toRunRoute
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -39,5 +40,29 @@ class PlaceDtoMapperTest {
 
     @Test fun formatDistance_exactly_1km_shows_km() {
         assertEquals("1.0 km away", formatDistance(1000))
+    }
+
+    @Test fun toRunRoute_maps_name_distance_category_photo() {
+        val dto = PlaceDto(
+            name = "Lake Gardens",
+            distance = 1200,
+            categories = listOf(CategoryDto("Park")),
+            photos = listOf(PhotoDto("https://x/", "/p.jpg"))
+        )
+        val route = dto.toRunRoute()
+        assertEquals("Lake Gardens", route.title)
+        assertEquals("1.2 km away", route.distance)
+        assertEquals("Park", route.difficulty)
+        assertEquals("https://x/400x300/p.jpg", route.imageUrl)
+        assertEquals("", route.time)
+        assertEquals("", route.elevation)
+        assertEquals(0, route.imageRes)
+    }
+
+    @Test fun toRunRoute_blank_category_falls_back_to_label() {
+        val dto = PlaceDto(name = "Trailhead", distance = 300, categories = emptyList(), photos = emptyList())
+        val route = dto.toRunRoute()
+        assertEquals("Run spot", route.difficulty)
+        assertNull(route.imageUrl)
     }
 }
