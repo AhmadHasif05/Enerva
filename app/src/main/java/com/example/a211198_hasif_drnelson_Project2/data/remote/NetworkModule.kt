@@ -7,36 +7,45 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
 
-// Builds the Foursquare Retrofit client. The API key + version are injected by an
-// interceptor from BuildConfig (blank key is fine — the repository falls back to
-// sample routes before any call is made).
+// Builds the keyless map-data clients used by the Weekend Run section:
+//  - Overpass (OpenStreetMap) for nearby places
+//  - Wikidata for each place's photo (P18 -> Wikimedia Commons)
+// Both are free and need no auth — just a polite User-Agent (their etiquette) and
+// generous timeouts because the public endpoints can be slow under load.
 object NetworkModule {
-    private const val BASE_URL = "https://places-api.foursquare.com/"
-    private const val API_VERSION = "2025-06-17"
+    private const val OVERPASS_URL = "https://overpass-api.de/"
+    private const val WIKIDATA_URL = "https://www.wikidata.org/"
+    private const val USER_AGENT = "Enerva-Android/1.0 (weekend-run-spots)"
 
-    val foursquareApi: FoursquareApi by lazy {
+    private val client: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC
             else HttpLoggingInterceptor.Level.NONE
         }
-        val client = OkHttpClient.Builder()
+        OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val req = chain.request().newBuilder()
-                    .addHeader("Authorization", "Bearer ${BuildConfig.FOURSQUARE_API_KEY}")
-                    .addHeader("X-Places-Api-Version", API_VERSION)
+                    .addHeader("User-Agent", USER_AGENT)
                     .addHeader("Accept", "application/json")
                     .build()
                 chain.proceed(req)
             }
             .addInterceptor(logging)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
-        val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(FoursquareApi::class.java)
     }
+
+    private val moshi: Moshi by lazy { Moshi.Builder().add(KotlinJsonAdapterFactory()).build() }
+
+    private fun retrofit(baseUrl: String): Retrofit = Retrofit.Builder()
+        .baseUrl(baseUrl)
+        .client(client)
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+
+    val overpassApi: OverpassApi by lazy { retrofit(OVERPASS_URL).create(OverpassApi::class.java) }
+    val wikidataApi: WikidataApi by lazy { retrofit(WIKIDATA_URL).create(WikidataApi::class.java) }
 }

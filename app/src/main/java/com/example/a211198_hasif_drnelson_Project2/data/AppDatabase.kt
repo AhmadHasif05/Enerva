@@ -73,8 +73,8 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // v6 → v7 (Weekend Run Spots): saved routes fetched from Foursquare carry a
-        // remote photo URL. Additive nullable ADD COLUMN — existing rows preserved.
+        // v6 → v7 (Weekend Run Spots): saved routes can carry a remote photo URL.
+        // Additive nullable ADD COLUMN — existing rows preserved.
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE saved_routes ADD COLUMN imageUrl TEXT")

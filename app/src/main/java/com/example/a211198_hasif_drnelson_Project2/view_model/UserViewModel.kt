@@ -53,7 +53,7 @@ class UserViewModel(
     var userProfile by mutableStateOf(UserData())
         private set
 
-    // Live "Plan Your Weekend Run" spots (Foursquare). Starts Loading; resolves to
+    // Live "Plan Your Weekend Run" spots (OpenStreetMap). Starts Loading; resolves to
     // Success (live) or Fallback (samples) after the first fetch.
     var weekendRun by mutableStateOf<WeekendRunUiState>(WeekendRunUiState.Loading)
         private set

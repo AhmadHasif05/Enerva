@@ -41,7 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.a211198_hasif_drnelson_Project2.model.GalleryActivity
 import com.example.a211198_hasif_drnelson_Project2.model.RunRoute
 import com.example.a211198_hasif_drnelson_Project2.model.routeList
@@ -271,10 +273,19 @@ fun RouteCard(route: RunRoute, saved: Boolean = false, onSaveToggle: () -> Unit 
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
+        val context = LocalContext.current
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth().weight(0.72f)) {
                 AsyncImage(
-                    model = route.imageUrl ?: route.imageRes,
+                    // A User-Agent header is required for Wikimedia Commons photos —
+                    // it returns 403 for okhttp's default UA. Set per-request so the
+                    // app-wide image loader (avatars, reels) is unaffected. Harmless
+                    // for the bundled drawable fallback.
+                    model = ImageRequest.Builder(context)
+                        .data(route.imageUrl ?: route.imageRes)
+                        .setHeader("User-Agent", "Enerva-Android/1.0 (weekend-run-spots)")
+                        .crossfade(true)
+                        .build(),
                     contentDescription = route.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
