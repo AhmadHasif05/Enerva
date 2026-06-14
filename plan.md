@@ -342,7 +342,7 @@ Each phase ends **buildable**. Phase 4's map works with no credentials (keyless 
 | 3 | Firebase Auth + Cloud Firestore | ✅ Done — rules published; reads/writes verified on-device (data lands in Firestore + Room) |
 | 4 | Real map in Record (MapLibre + MapTiler/OpenFreeMap) | ✅ Done — verified on-device (real GPS location renders on a physical phone); map works keyless via OpenFreeMap, optional `MAPTILER_API_KEY` (see docs/setupmaps.md) |
 | 5 | Camera in Record screen | ✅ Done — camera capture + branded card + **cross-device images** (Firestore blob, not Storage — no Blaze); verified on-device (post saves to Firestore + local) |
-| 6 | Live Weekend Run Spots (Foursquare Places REST API) | 🔜 Designed — Home "Plan Your Weekend Run" fetches real nearby parks/trails (photo + name + distance) via Retrofit; first live use of the wired networking stack. Spec: [`docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md`](docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md) |
+| 6 | Live Weekend Run Spots (Foursquare Places REST API) | ✅ Code-complete — Home "Plan Your Weekend Run" fetches real nearby parks (photo + name + distance) via Retrofit; first live use of the wired networking stack; falls back to sample routes offline/keyless. On-device verification pending (needs a device + a `FOURSQUARE_API_KEY`). Spec: [`…specs/2026-06-14-weekend-run-spots-foursquare-design.md`](docs/superpowers/specs/2026-06-14-weekend-run-spots-foursquare-design.md) · Plan: [`…plans/2026-06-14-weekend-run-spots-foursquare.md`](docs/superpowers/plans/2026-06-14-weekend-run-spots-foursquare.md) · Setup: [`docs/setupfoursquare.md`](docs/setupfoursquare.md) |
 
 ### Phase 3 sub-tracker (Firebase)
 
