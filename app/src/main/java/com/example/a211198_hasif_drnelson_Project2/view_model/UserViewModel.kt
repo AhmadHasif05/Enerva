@@ -1,5 +1,6 @@
 package com.example.a211198_hasif_drnelson_Project2.view_model
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -14,7 +15,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.a211198_hasif_drnelson_Project2.RunTrackApplication
 import com.example.a211198_hasif_drnelson_Project2.data.entities.SavedRouteEntity
 import com.example.a211198_hasif_drnelson_Project2.data.repository.AuthRepository
+import com.example.a211198_hasif_drnelson_Project2.data.repository.RunSpotRepository
 import com.example.a211198_hasif_drnelson_Project2.data.repository.UserRepository
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.tasks.await
 import com.example.a211198_hasif_drnelson_Project2.model.RunRoute
 import com.example.a211198_hasif_drnelson_Project2.model.UserData
 import com.example.a211198_hasif_drnelson_Project2.model.routeList
@@ -30,7 +34,8 @@ import kotlinx.coroutines.launch
 class UserViewModel(
     application: Application,
     private val authRepository: AuthRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val runSpotRepository: RunSpotRepository
 ) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("runtrack", Context.MODE_PRIVATE)
@@ -46,6 +51,11 @@ class UserViewModel(
 
     // The currently logged-in user's profile.
     var userProfile by mutableStateOf(UserData())
+        private set
+
+    // Live "Plan Your Weekend Run" spots (Foursquare). Starts Loading; resolves to
+    // Success (live) or Fallback (samples) after the first fetch.
+    var weekendRun by mutableStateOf<WeekendRunUiState>(WeekendRunUiState.Loading)
         private set
 
     // Friend follow state mirror, keyed by friend display name.
@@ -72,6 +82,7 @@ class UserViewModel(
                 applyActiveSession(profile)
             }
         }
+        loadWeekendRunSpots()
     }
 
     // ---- registration / login ----
@@ -239,6 +250,30 @@ class UserViewModel(
         }
     }
 
+    // ---- weekend run spots ----
+
+    private val DEFAULT_LAT = 3.1390
+    private val DEFAULT_LNG = 101.6869
+
+    fun loadWeekendRunSpots() {
+        viewModelScope.launch {
+            val (lat, lng) = lastKnownLatLng()
+            val result = runSpotRepository.nearbyRunSpots(lat, lng)
+            weekendRun = if (result.isLive) WeekendRunUiState.Success(result.routes)
+            else WeekendRunUiState.Fallback(result.routes)
+        }
+    }
+
+    // Best-effort last-known location; falls back to a fixed city when permission
+    // isn't granted or no fix is cached. Reuses the location permission already
+    // requested by the Record screen — no new prompt here.
+    @SuppressLint("MissingPermission")
+    private suspend fun lastKnownLatLng(): Pair<Double, Double> = runCatching {
+        val client = LocationServices.getFusedLocationProviderClient(getApplication<Application>())
+        val loc = client.lastLocation.await()
+        if (loc != null) loc.latitude to loc.longitude else DEFAULT_LAT to DEFAULT_LNG
+    }.getOrElse { DEFAULT_LAT to DEFAULT_LNG }
+
     // ---- private helpers ----
 
     /** Wire up an authenticated session: mirror state, persist active email, start sync. */
@@ -294,7 +329,7 @@ class UserViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as RunTrackApplication
-                UserViewModel(app, app.authRepository, app.userRepository)
+                UserViewModel(app, app.authRepository, app.userRepository, app.runSpotRepository)
             }
         }
     }
