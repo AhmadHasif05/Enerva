@@ -5,16 +5,31 @@ The Home **"Plan Your Weekend Run"** section fetches real nearby places to run
 falls back to the built-in sample routes.
 
 ## Get a key (free, no credit card)
-1. Sign up at https://foursquare.com/developers/
-2. Create a project / app and generate a **Places API** key (a Service Key /
-   Bearer token for the new `places-api.foursquare.com` platform).
-3. Add it to `local.properties` at the repo root (this file is git-ignored):
+
+The key you need is a **Service API Key** on Foursquare's current developer
+platform (`places-api.foursquare.com`). Ignore older tutorials that mention a
+"v3 API key" — that flow is being retired.
+
+1. **Sign in / sign up** at https://foursquare.com/developers/login
+   (free account, includes starter credit, no credit card).
+2. In the **Developer Console**, create a **Project** (any name, e.g. "Enerva").
+3. Open that project's **Settings** page.
+4. In the **Service API Keys** section, click **Generate Service API Key**.
+5. Give it a name (e.g. "android-app") → **Next**.
+6. **Copy the key immediately** with the copy icon. ⚠️ This is the *only* time
+   it is shown — if you lose it, revoke it and generate a new one.
+7. Add it to `local.properties` at the repo root (this file is git-ignored):
 
    ```
-   FOURSQUARE_API_KEY=YOUR_KEY_HERE
+   FOURSQUARE_API_KEY=paste_your_key_here
    ```
-4. Rebuild. The section now shows live nearby parks with photos and
+   Paste only the raw key — no quotes, no spaces, and no `Bearer ` prefix (the
+   app adds `Bearer ` for you). Example: `FOURSQUARE_API_KEY=ABCD1234...`
+8. Rebuild. The section now shows live nearby parks with photos and
    "x.x km away" distances.
+
+> No key? The app still runs — it falls back to the built-in sample routes
+> (Teratai, Lakeside Trail). The key only adds *live* data.
 
 ## How it works
 - **Location:** uses the device's last-known GPS fix (the same location
