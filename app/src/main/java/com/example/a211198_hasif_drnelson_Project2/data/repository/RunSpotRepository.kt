@@ -26,7 +26,10 @@ class RunSpotRepository(
                 val results = api.searchPlaces(ll = "$lat,$lng").results
                     .map { it.toRunRoute() }
                 if (results.isEmpty()) fallback() else RunSpotResult(results, isLive = true)
-            }.getOrElse { fallback() }
+            }.getOrElse { e ->
+                android.util.Log.w("RunSpotRepository", "nearbyRunSpots failed; using samples", e)
+                fallback()
+            }
         }
 
     private fun fallback() = RunSpotResult(routeList, isLive = false)
